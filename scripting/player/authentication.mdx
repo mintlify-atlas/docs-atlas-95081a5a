@@ -1,0 +1,200 @@
+---
+title: 'Player Authentication'
+description: 'Functions for managing player authentication, UID, and power levels'
+icon: 'shield-check'
+---
+
+## Overview
+
+These functions handle player authentication, unique identifiers (UID), and permission levels (power). The UID system requires a valid auth server or a CoD4 plugin with UID support.
+
+## getUid
+
+Returns the player's unique identifier (UID).
+
+```gsc
+int getUid()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's UID, or -1 if no UID is defined or the auth server is not configured
+</ResponseField>
+
+<Note>
+  This function only works with a valid auth server configured or if another CoD4 plugin with UID support is loaded.
+</Note>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    uid = self getUid();
+    
+    if(uid == -1)
+    {
+        iPrintLn("Player " + self.name + " has no UID");
+    }
+    else
+    {
+        iPrintLn("Player " + self.name + " UID: " + uid);
+    }
+}
+```
+
+---
+
+## setUid
+
+Sets the player's unique identifier (UID).
+
+```gsc
+int setUid(<uid>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="uid" type="int" required>
+  The UID to set (must be between 0 and 9999999)
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The normalized UID (input + 100000000)
+</ResponseField>
+
+<Warning>
+  The UID must be in the range between 0 and 9999999. Values outside this range will cause an error.
+</Warning>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Set a custom UID for the player
+    newUid = self setUid(12345);
+    iPrintLn("Player UID set to: " + newUid);
+}
+```
+
+---
+
+## getPower
+
+Returns the player's power level (permission level).
+
+```gsc
+int getPower()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's power level (1-100)
+</ResponseField>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    power = self getPower();
+    
+    if(power >= 80)
+    {
+        iPrintLn(self.name + " is an admin (power: " + power + ")");
+    }
+    else if(power >= 50)
+    {
+        iPrintLn(self.name + " is a moderator (power: " + power + ")");
+    }
+    else
+    {
+        iPrintLn(self.name + " is a regular player (power: " + power + ")");
+    }
+}
+```
+
+---
+
+## setPower
+
+Sets the player's power level (permission level).
+
+```gsc
+void setPower(<power>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="power" type="int" required>
+  The power level to set (must be between 1 and 100)
+</ParamField>
+
+<Warning>
+  The power level must be in the range between 1 and 100. Values outside this range will cause an error.
+</Warning>
+
+### Example
+
+```gsc
+PromotePlayer(player)
+{
+    currentPower = player getPower();
+    newPower = currentPower + 10;
+    
+    if(newPower > 100)
+        newPower = 100;
+    
+    player setPower(newPower);
+    iPrintLn(player.name + " promoted to power level " + newPower);
+}
+
+DemotePlayer(player)
+{
+    currentPower = player getPower();
+    newPower = currentPower - 10;
+    
+    if(newPower < 1)
+        newPower = 1;
+    
+    player setPower(newPower);
+    iPrintLn(player.name + " demoted to power level " + newPower);
+}
+
+AdminCommand()
+{
+    if(self getPower() < 80)
+    {
+        self iPrintLnBold("^1Insufficient permissions!");
+        return;
+    }
+    
+    // Execute admin command
+    level thread ExecuteAdminAction();
+}
+```
+
+## Related Functions
+
+- [getUserinfo](/scripting/player/info#getuserinfo) - Get player userinfo values
+- [getIp](/scripting/player/info#getip) - Get player IP address

@@ -1,0 +1,564 @@
+---
+title: 'Server Console Commands'
+description: 'Complete reference for CoD4 Unleashed Server console commands'
+---
+
+## Player Management Commands
+
+Commands for managing players on your server.
+
+### status
+
+Displays detailed information about all connected players.
+
+```bash
+status
+```
+
+**Output includes:**
+- Client number (slot)
+- Score
+- Ping (or connection state: CNCT, ZMBI, PRIM)
+- GUID (32-character PunkBuster GUID)
+- Player name (with color codes)
+- Last message time
+- IP address and port
+- QPort and rate
+
+**Source:** `sv_cmds.c:536`
+
+### ministatus
+
+Compact status view with UID/GUID, FPS, and client version information.
+
+```bash
+ministatus
+```
+
+**Additional columns:**
+- UID (if player has authenticated) or short GUID
+- Power level
+- Client FPS
+- Client version (xversion)
+
+**Source:** `sv_cmds.c:1091`
+
+### kick
+
+Kick a player from the server.
+
+```bash
+kick <player> [reason]
+```
+
+<ParamField path="player" type="string" required>
+  Player identifier: slot number, name (or partial name), or UID with @ prefix
+</ParamField>
+
+<ParamField path="reason" type="string">
+  Reason for the kick (max 126 characters)
+</ParamField>
+
+<Note>
+  You cannot kick admins with higher power levels than your own.
+</Note>
+
+**Examples:**
+```bash
+kick 5 Teamkilling
+kick @12345 Breaking server rules
+kick PlayerName Cheating
+```
+
+**Source:** `sv_cmds.c:1008`
+
+### permban / banUser / banClient
+
+Permanently ban a player from the server.
+
+```bash
+permban <player> <reason>
+banUser <player>
+banClient <player>
+```
+
+<ParamField path="player" type="string" required>
+  Player identifier:
+  - Online player slot number
+  - Player name (partial matches work)
+  - GUID (8-character hex string)
+  - UID with @ prefix (e.g., @12345)
+</ParamField>
+
+<ParamField path="reason" type="string" required>
+  Ban reason (max 126 characters, required for permban)
+</ParamField>
+
+<Warning>
+  Players without a valid UID will be banned by IP address only.
+</Warning>
+
+**Examples:**
+```bash
+permban 7 Hacking detected
+permban @12345 Multiple rule violations
+permban abc123ef Wallhacking
+```
+
+**Source:** `sv_cmds.c:673`
+
+### tempban
+
+Temporarily ban a player for a specified duration.
+
+```bash
+tempban <player> <time> <reason>
+```
+
+<ParamField path="player" type="string" required>
+  Player identifier (same format as permban)
+</ParamField>
+
+<ParamField path="time" type="string" required>
+  Ban duration:
+  - **XXm** - Minutes (e.g., 30m)
+  - **XXh** - Hours (e.g., 24h)
+  - **XXd** - Days (e.g., 7d)
+  
+  Maximum: 30 days
+</ParamField>
+
+<ParamField path="reason" type="string" required>
+  Ban reason (max 126 characters)
+</ParamField>
+
+**Examples:**
+```bash
+tempban 3 2h Excessive camping
+tempban @54321 7d Toxic behavior
+tempban abcd1234 30m Spawn killing
+```
+
+**Source:** `sv_cmds.c:821`
+
+### unban
+
+Remove a ban from a player.
+
+```bash
+unban <identifier>
+```
+
+<ParamField path="identifier" type="string" required>
+  GUID (8 characters) or UID with @ prefix
+</ParamField>
+
+**Examples:**
+```bash
+unban @12345
+unban abc123ef
+```
+
+**Source:** `sv_cmds.c:626`
+
+### dumpbanlist
+
+Display all active bans on the server.
+
+```bash
+dumpbanlist
+```
+
+Shows:
+- UID
+- Nickname
+- GUID
+- Admin UID
+- Expiration date/time
+- Ban reason
+
+**Source:** `sv_cmds.c:1084`, `sv_banlist.c:740`
+
+## Communication Commands
+
+### say
+
+Send a message to all players in chat.
+
+```bash
+say <message>
+```
+
+Message appears with the server name configured in `sv_consayname` cvar.
+
+**Source:** `sv_cmds.c:359`
+
+### tell
+
+Send a private message to a specific player in chat.
+
+```bash
+tell <player> <message>
+```
+
+<ParamField path="player" type="string" required>
+  Player slot number or name
+</ParamField>
+
+**Source:** `sv_cmds.c:418`
+
+### sayscreen / screen
+
+Display a message on players' screens (console output).
+
+```bash
+sayscreen <message>
+screen <message>
+```
+
+**Source:** `sv_cmds.c:375`
+
+### tellscreen
+
+Display a message on a specific player's screen.
+
+```bash
+tellscreen <player> <message>
+```
+
+**Source:** `sv_cmds.c:404`
+
+## Player Information
+
+### dumpuser
+
+Display detailed information about a specific player.
+
+```bash
+dumpuser <player>
+```
+
+Shows:
+- All userinfo variables
+- PunkBuster GUID
+- Authentication status
+- Operating System (Windows/Mac)
+- Player UID
+
+**Authentication states:**
+- `1` - Successfully authenticated with server
+- `0` - Authentication timed out
+- `-1` - Plugin authentication or N/A
+
+**Source:** `sv_cmds.c:430`
+
+## Server Management
+
+### map
+
+Load a new map.
+
+```bash
+map <mapname>
+```
+
+<ParamField path="mapname" type="string" required>
+  Map name without mp_ prefix (e.g., crash, strike, backlot)
+</ParamField>
+
+**Examples:**
+```bash
+map mp_crash
+map mp_strike
+```
+
+**Source:** `sv_cmds.c:1506`
+
+### devmap
+
+Load a map with cheats enabled.
+
+```bash
+devmap <mapname>
+```
+
+Sets `sv_cheats` to 1.
+
+**Source:** `sv_cmds.c:1506`
+
+### map_restart
+
+Restart the current map with full reload.
+
+```bash
+map_restart
+```
+
+**Required power:** 50
+
+**Source:** `sv_cmds.c:1632`, `sv_cmds.c:1994`
+
+### fast_restart
+
+Quickly restart the current map without full reload.
+
+```bash
+fast_restart
+```
+
+**Source:** `sv_cmds.c:1634`
+
+### map_rotate
+
+Load the next map in the rotation.
+
+```bash
+map_rotate
+```
+
+Reads from `sv_mapRotation` and `sv_mapRotationCurrent` cvars.
+
+**Rotation format:**
+```
+gametype dm map mp_crash gametype war map mp_strike
+```
+
+**Source:** `sv_cmds.c:1538`
+
+### gametype
+
+Change the game type and restart the map.
+
+```bash
+gametype <type>
+```
+
+<ParamField path="type" type="string" required>
+  Game type: dm, war, sab, koth, sd, hq
+</ParamField>
+
+**Source:** `sv_cmds.c:1957`
+
+### killserver
+
+Shutdown and restart the server process.
+
+```bash
+killserver
+```
+
+<Warning>
+  This will terminate the server process and restart it if configured.
+</Warning>
+
+**Source:** `sv_cmds.c:1501`
+
+## Demo Recording
+
+### record
+
+Start recording a server-side demo for a player.
+
+```bash
+record <player> [demoname]
+record all
+```
+
+<ParamField path="player" type="string" required>
+  Player identifier or "all" for all players
+</ParamField>
+
+<ParamField path="demoname" type="string">
+  Custom demo filename (auto-generated if omitted)
+</ParamField>
+
+**Auto-generated format:**
+- With UID: `demo_<uid>_`
+- With GUID: `demo_<guid>_`
+
+**Examples:**
+```bash
+record 5
+record @12345 suspicious_player
+record all
+```
+
+**Source:** `sv_cmds.c:1370`
+
+### stoprecord
+
+Stop recording a demo.
+
+```bash
+stoprecord <player>
+stoprecord all
+```
+
+**Source:** `sv_cmds.c:1334`
+
+## Custom Messages
+
+### addRuleMsg
+
+Add a server rule message that players can view.
+
+```bash
+addRuleMsg "Your rule text here"
+```
+
+**Source:** `sv_cmds.c:1449`
+
+### addAdvertMsg
+
+Add an advertisement message.
+
+```bash
+addAdvertMsg "Your advertisement here"
+```
+
+**Source:** `sv_cmds.c:1459`
+
+### clearAllMessages
+
+Clear all rule and advertisement messages.
+
+```bash
+clearAllMessages
+```
+
+**Source:** `sv_cmds.c:1468`
+
+### rules
+
+Display server rules to the player.
+
+```bash
+rules
+```
+
+**Required power:** 1 (any player)
+
+**Source:** `sv_cmds.c:1424`, `sv_cmds.c:1996`
+
+## Advanced Commands
+
+### downloadmap
+
+Download a custom map from a URL.
+
+```bash
+downloadmap "http://example.com/usermaps/mapname"
+```
+
+<ParamField path="url" type="string" required>
+  Base URL to map directory (without trailing slash)
+</ParamField>
+
+Downloads:
+- `mapname.ff`
+- `mapname_load.ff`
+- `mapname.iwd` (optional)
+
+<Note>
+  Downloads run in a separate thread. Only one download at a time is allowed.
+</Note>
+
+**Source:** `sv_cmds.c:1923`
+
+### addCommand
+
+Create a custom command with parameter substitution.
+
+```bash
+addCommand <commandname> "command string"
+```
+
+**Variable substitution:**
+- `$uid` - Invoker's UID
+- `$clnum` - Invoker's client number
+- `$pow` - Invoker's power level
+- `$arg` - Command argument
+- `$arg:default` - Argument with default value
+
+**Example:**
+```bash
+addCommand slap "tell $arg You've been slapped by admin @$uid"
+```
+
+**Source:** `sv_cmds.c:1285`
+
+### setPerk
+
+Give a perk to a player.
+
+```bash
+setPerk <player> <perkname>
+```
+
+<ParamField path="perkname" type="string" required>
+  Perk name (e.g., specialty_bulletdamage, specialty_fastreload)
+</ParamField>
+
+**Source:** `sv_cmds.c:1636`
+
+## Server Information
+
+### serverinfo
+
+Display server info variables.
+
+```bash
+serverinfo
+```
+
+**Source:** `sv_cmds.c:1477`
+
+### systeminfo
+
+Display system info variables.
+
+```bash
+systeminfo
+```
+
+**Source:** `sv_cmds.c:1489`
+
+### showconfigstring
+
+Display a specific configstring by index.
+
+```bash
+showconfigstring <index>
+```
+
+**Source:** `sv_cmds.c:1753`
+
+### heartbeat
+
+Manually send a heartbeat to master servers.
+
+```bash
+heartbeat
+```
+
+**Source:** `sv_cmds.c:1196`
+
+## Related Configuration
+
+<CardGroup cols={2}>
+  <Card title="Authentication System" icon="shield-check" href="/admin/authentication">
+    Learn about the UID authentication and admin system
+  </Card>
+  
+  <Card title="Web Admin" icon="browser" href="/admin/web-admin">
+    Configure and use the web-based administration interface
+  </Card>
+  
+  <Card title="Security Features" icon="lock" href="/admin/security">
+    IP bans, rate limiting, and server security
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Server configuration variables and settings
+  </Card>
+</CardGroup>

@@ -1,0 +1,152 @@
+---
+title: CoD4 Unleashed Server
+description: A custom Call of Duty 4 dedicated server with enhanced functionality and usability
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="Hero Dark"
+/>
+
+## Welcome to CoD4 Unleashed
+
+CoD4 Unleashed is a custom CoD4 dedicated server designed to significantly improve the functionality and usability of the stock CoD4 server. Built with modern features and enhanced scripting capabilities, it provides server administrators with powerful tools to create unique gaming experiences.
+
+<Note>
+  This project is released under the **GNU Affero General Public License v3.0**
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="HTTP/HTTPS Support"
+    icon="globe"
+    href="/scripting/server/http-requests"
+  >
+    Make external web requests with full HTTP/HTTPS support via libcurl
+  </Card>
+  <Card
+    title="JSON Processing"
+    icon="brackets-curly"
+    href="/scripting/advanced/json"
+  >
+    Native JSON encoding and decoding for data persistence and API communication
+  </Card>
+  <Card
+    title="Enhanced Performance Monitoring"
+    icon="gauge-high"
+    href="/scripting/player/info"
+  >
+    Advanced FPS tracking with lag spike detection using getCountedFps and isLagging functions
+  </Card>
+  <Card
+    title="Multi-Protocol Support"
+    icon="network-wired"
+    href="/scripting/player/info"
+  >
+    Support for both legacy CoD4 and 1.8 Steam patch protocols
+  </Card>
+  <Card
+    title="JSON Module"
+    icon="brackets-curly"
+    href="/scripting/advanced/json"
+  >
+    Native JSON parsing and manipulation in GSC scripting
+  </Card>
+  <Card
+    title="Enhanced Performance Monitoring"
+    icon="gauge-high"
+    href="/scripting/player/info"
+  >
+    Advanced FPS tracking with lag spike detection using getCountedFps and isLagging functions
+  </Card>
+  <Card
+    title="Multi-Protocol Support"
+    icon="network-wired"
+    href="/scripting/player/info"
+  >
+    Support for both legacy CoD4 and 1.8 Steam patch protocols
+  </Card>
+</CardGroup>
+
+## What's New
+
+The latest version includes several groundbreaking features:
+
+- **Secondary Protocol Version**: Full support for the 1.8 Steam patch
+- **HTTPS Integration**: Secure web requests with libcurl
+- **Advanced FPS Functions**: `getCountedFps()` properly detects lag spikes, while `isLagging()` helps identify performance issues
+- **Protocol Detection**: New `getProtocol()` function to retrieve player protocol versions
+- **Extended Scripting API**: Enhanced GSC functions including `isArray()`, `getEpochTime()`, `epochTimeToString()`, and `setSpectatedClient()`
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Set up your development environment and compile the server
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get your server up and running in minutes
+  </Card>
+  <Card
+    title="Scripting API"
+    icon="code"
+    href="https://docs.raid-gaming.net/"
+  >
+    Explore the complete scripting API documentation
+  </Card>
+  <Card
+    title="Community Support"
+    icon="users"
+    href="https://raid-gaming.net/forum/18-call-of-duty-4-unleashed/"
+  >
+    Get help and connect with other server administrators
+  </Card>
+</CardGroup>
+
+## System Requirements
+
+<AccordionGroup>
+  <Accordion title="Linux Requirements">
+    - **Architecture**: 32-bit or 64-bit
+    - **Compiler**: GCC with multilib support (for 64-bit systems)
+    - **Assembler**: NASM
+    - **Libraries**: libcurl with OpenSSL support
+    - **OS**: Debian, Ubuntu, Arch Linux, or compatible distribution
+  </Accordion>
+
+  <Accordion title="Windows Requirements">
+    - **Architecture**: 32-bit compatible
+    - **Compiler**: MinGW32 (GCC for Windows)
+    - **Assembler**: NASM
+    - **Libraries**: libcurl, OpenSSL 32-bit (v1.1.1g or later)
+    - **OS**: Windows XP SP3 or later (WINVER=0x501)
+  </Accordion>
+</AccordionGroup>
+
+## Community and Support
+
+Need help or want to contribute?
+
+- **Official Forum**: [RAID Gaming CoD4 Unleashed](https://raid-gaming.net/forum/18-call-of-duty-4-unleashed/)
+- **API Documentation**: [docs.raid-gaming.net](https://docs.raid-gaming.net/)
+- **GitHub Repository**: Report issues and contribute code
+
+<Warning>
+  This is a custom server modification. Ensure you have the legal rights to run a Call of Duty 4 dedicated server in your region.
+</Warning>

@@ -1,0 +1,593 @@
+---
+title: 'Getting Started with GSC Scripting'
+description: 'Learn how to write your first GSC scripts for CoD4 Unleashed Server'
+---
+
+## Prerequisites
+
+Before you start scripting, make sure you have:
+
+- CoD4 Unleashed Server installed and running
+- Basic understanding of programming concepts
+- A text editor (VS Code, Notepad++, or similar)
+- Access to your server's file system
+
+## Your First Script
+
+Let's create a simple script that welcomes players when they connect.
+
+<Steps>
+  <Step title="Create the Script File">
+    Create a new file at `main/maps/mp/gametypes/_welcome.gsc`:
+    
+    ```gsc
+    init() {
+        level thread onPlayerConnect();
+    }
+    
+    onPlayerConnect() {
+        for(;;) {
+            level waittill("connected", player);
+            player thread onPlayerSpawned();
+        }
+    }
+    
+    onPlayerSpawned() {
+        self endon("disconnect");
+        
+        for(;;) {
+            self waittill("spawned_player");
+            self iprintlnbold("^2Welcome to the server!");
+            wait 0.05;
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Load the Script">
+    Add this line to your gametype's `main()` function (e.g., in `dm.gsc`):
+    
+    ```gsc
+    main() {
+        // Existing code...
+        
+        maps\mp\gametypes\_welcome::init();
+        
+        // More code...
+    }
+    ```
+  </Step>
+  
+  <Step title="Test Your Script">
+    Restart your server and join. You should see the welcome message when you spawn!
+  </Step>
+</Steps>
+
+## Understanding the Code
+
+Let's break down what each part does:
+
+```gsc
+init() {
+    level thread onPlayerConnect();
+}
+```
+
+The `init()` function is called when your script loads. It starts the `onPlayerConnect()` function in a new thread.
+
+```gsc
+for(;;) {
+    level waittill("connected", player);
+    player thread onPlayerSpawned();
+}
+```
+
+This infinite loop waits for the "connected" event and gets the player entity. The `wait` is implicit in `waittill`.
+
+```gsc
+self endon("disconnect");
+```
+
+This ensures the thread ends when the player disconnects, preventing memory leaks.
+
+## Working with Player Data
+
+Let's expand our script to track player statistics:
+
+```gsc
+init() {
+    level thread onPlayerConnect();
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        
+        // Initialize player data
+        player.pers["connections"] = 0;
+        if (!isDefined(player.pers["connections"])) {
+            player.pers["connections"] = 0;
+        }
+        player.pers["connections"]++;
+        
+        player thread onPlayerSpawned();
+        player thread showPlayerInfo();
+    }
+}
+
+onPlayerSpawned() {
+    self endon("disconnect");
+    
+    for(;;) {
+        self waittill("spawned_player");
+        
+        connectionCount = self.pers["connections"];
+        self iprintlnbold("Welcome! You've connected " + connectionCount + " times.");
+        
+        wait 0.05;
+    }
+}
+
+showPlayerInfo() {
+    self endon("disconnect");
+    
+    wait 3; // Wait 3 seconds after connecting
+    
+    // Get player information
+    uid = self getUid();
+    ip = self getIp();
+    ping = self getPing();
+    
+    self iprintln("Your UID: " + uid);
+    self iprintln("Your IP: " + ip);
+    self iprintln("Your Ping: " + ping + "ms");
+}
+```
+
+## File Operations
+
+Let's create a script that logs player connections to a file:
+
+<Note>
+File operations require proper permissions. Make sure your server has write access to the game directory.
+</Note>
+
+```gsc
+init() {
+    level thread onPlayerConnect();
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        player thread logConnection();
+    }
+}
+
+logConnection() {
+    // Get player information
+    name = self.name;
+    uid = self getUid();
+    ip = self getIp();
+    
+    // Get current time
+    timestamp = getEpochTime();
+    timeStr = epochTimeToString(timestamp, 1, "%Y-%m-%d %H:%M:%S");
+    
+    // Create log entry
+    logEntry = timeStr + " - " + name + " (UID: " + uid + ", IP: " + ip + ") connected";
+    
+    // Write to file
+    file = fs_fopen("connections.log", "append");
+    if (file) {
+        fs_writeline(file, logEntry);
+        fs_fclose(file);
+    }
+}
+```
+
+## HTTP Requests
+
+CoD4 Unleashed allows you to make HTTP requests. Here's an example using the built-in HTTP module:
+
+```gsc
+#include unleashed\http;
+
+init() {
+    level thread onPlayerConnect();
+    
+    // Set base URL for all requests
+    unleashed\http::setOpt("http_base_path", "https://api.example.com");
+    
+    // Set global headers
+    unleashed\http::setHeader("Content-Type", "application/json");
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        player thread registerPlayerOnAPI();
+    }
+}
+
+registerPlayerOnAPI() {
+    self endon("disconnect");
+    
+    // Prepare player data
+    playerData = [];
+    playerData["name"] = self.name;
+    playerData["uid"] = self getUid();
+    playerData["ip"] = self getIp();
+    
+    // Convert to JSON
+    jsonData = unleashed\json::encode(playerData);
+    
+    // Make POST request
+    response = unleashed\http::post("/players", jsonData);
+    
+    if (isDefined(response)) {
+        iprintln("Player registered on API: " + response);
+    }
+}
+```
+
+## Custom Player Commands
+
+Create a command system for players:
+
+```gsc
+init() {
+    level thread onPlayerConnect();
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        player thread monitorChat();
+    }
+}
+
+monitorChat() {
+    self endon("disconnect");
+    
+    for(;;) {
+        self waittill("say", message);
+        
+        // Check for commands
+        if (getSubStr(message, 0, 1) == "!") {
+            thread processCommand(message);
+        }
+    }
+}
+
+processCommand(message) {
+    // Remove the ! prefix
+    cmd = getSubStr(message, 1);
+    args = strTok(cmd, " ");
+    command = args[0];
+    
+    switch(command) {
+        case "help":
+            self iprintln("Available commands: !help, !stats, !ping, !time");
+            break;
+            
+        case "stats":
+            self showStats();
+            break;
+            
+        case "ping":
+            ping = self getPing();
+            self iprintln("Your ping: " + ping + "ms");
+            break;
+            
+        case "time":
+            timeStr = epochTimeToString(getEpochTime(), 1, "%H:%M:%S");
+            self iprintln("Server time: " + timeStr);
+            break;
+            
+        default:
+            self iprintln("Unknown command. Type !help for available commands.");
+            break;
+    }
+}
+
+showStats() {
+    kills = self.pers["kills"];
+    deaths = self.pers["deaths"];
+    
+    if (!isDefined(kills)) kills = 0;
+    if (!isDefined(deaths)) deaths = 0;
+    
+    kd = 0;
+    if (deaths > 0) {
+        kd = kills / deaths;
+    } else {
+        kd = kills;
+    }
+    
+    self iprintln("Stats - K: " + kills + " D: " + deaths + " K/D: " + kd);
+}
+```
+
+## Physics Modifications
+
+Create a low gravity mode:
+
+```gsc
+init() {
+    level.lowGravityEnabled = false;
+    level thread onPlayerConnect();
+    level thread monitorGravityToggle();
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        player thread applyGravitySettings();
+    }
+}
+
+applyGravitySettings() {
+    self endon("disconnect");
+    
+    for(;;) {
+        self waittill("spawned_player");
+        
+        if (level.lowGravityEnabled) {
+            self setGravity(200);      // Low gravity
+            self setJumpHeight(128);   // Higher jumps
+            self iprintln("^3Low Gravity Mode: ON");
+        } else {
+            self setGravity(800);      // Normal gravity
+            self setJumpHeight(64);    // Normal jumps
+        }
+        
+        wait 0.05;
+    }
+}
+
+monitorGravityToggle() {
+    for(;;) {
+        // This would be triggered by an admin command
+        level waittill("toggle_gravity");
+        
+        level.lowGravityEnabled = !level.lowGravityEnabled;
+        
+        players = getEntArray("player", "classname");
+        for (i = 0; i < players.size; i++) {
+            if (level.lowGravityEnabled) {
+                players[i] setGravity(200);
+                players[i] setJumpHeight(128);
+                players[i] iprintlnbold("^2Low Gravity Mode: ON");
+            } else {
+                players[i] setGravity(800);
+                players[i] setJumpHeight(64);
+                players[i] iprintlnbold("^1Low Gravity Mode: OFF");
+            }
+        }
+    }
+}
+```
+
+## Input Detection
+
+Detect when players press specific buttons:
+
+```gsc
+init() {
+    level thread onPlayerConnect();
+}
+
+onPlayerConnect() {
+    for(;;) {
+        level waittill("connected", player);
+        player thread monitorInput();
+    }
+}
+
+monitorInput() {
+    self endon("disconnect");
+    
+    for(;;) {
+        wait 0.05;
+        
+        // Check for jump button
+        if (self jumpButtonPressed()) {
+            // Player is jumping
+            self iprintln("Jump!");
+            wait 0.5; // Debounce
+        }
+        
+        // Check for sprint button
+        if (self sprintButtonPressed()) {
+            // Player is sprinting
+            // Increase sprint speed
+            self setMoveSpeed(250);
+        } else {
+            self setMoveSpeed(190); // Normal speed
+        }
+        
+        // Check for reload button
+        if (self reloadButtonPressed()) {
+            self iprintln("Reloading!");
+            wait 0.5;
+        }
+    }
+}
+```
+
+## Array Utilities
+
+Using the built-in array utilities:
+
+```gsc
+#include unleashed\array;
+
+init() {
+    // Create an array of player names
+    playerNames = [];
+    playerNames[playerNames.size] = "John";
+    playerNames[playerNames.size] = "Jane";
+    playerNames[playerNames.size] = "Bob";
+    playerNames[playerNames.size] = "Alice";
+    
+    // Filter players whose name starts with 'J'
+    jPlayers = playerNames unleashed\array::filter(::startsWithJ);
+    
+    // Map names to uppercase
+    upperNames = playerNames unleashed\array::mapArray(::toUpper);
+    
+    // Check if array includes a name
+    hasJohn = playerNames unleashed\array::includes("John"); // true
+    
+    // Find index
+    index = playerNames unleashed\array::indexOf("Bob"); // 2
+}
+
+startsWithJ(name, index, array) {
+    return getSubStr(name, 0, 1) == "J";
+}
+```
+
+## Debugging Tips
+
+<Steps>
+  <Step title="Use Print Statements">
+    ```gsc
+    iprintln("Debug: Variable value = " + variable);
+    logPrint("Debug info: " + info);
+    ```
+  </Step>
+  
+  <Step title="Check Variable Types">
+    ```gsc
+    if (!isDefined(variable)) {
+        iprintln("ERROR: Variable is undefined");
+        return;
+    }
+    
+    if (!isArray(players)) {
+        iprintln("ERROR: Expected array, got: " + getType(players));
+        return;
+    }
+    ```
+  </Step>
+  
+  <Step title="Monitor Server Console">
+    Watch the server console for script errors. They will show:
+    - Error message
+    - File name and line number
+    - Stack trace
+  </Step>
+  
+  <Step title="Use Assertions">
+    ```gsc
+    assertEx(isDefined(player), "Player must be defined");
+    assertEx(isPlayer(player), "Entity must be a player");
+    assertEx(value > 0, "Value must be positive");
+    ```
+  </Step>
+</Steps>
+
+## Common Pitfalls
+
+<Warning>
+Avoid these common mistakes:
+</Warning>
+
+### Infinite Loops Without Wait
+
+```gsc
+// BAD - Will freeze the server
+for(;;) {
+    doSomething();
+}
+
+// GOOD
+for(;;) {
+    wait 0.05;
+    doSomething();
+}
+```
+
+### Not Using endon
+
+```gsc
+// BAD - Thread continues after disconnect
+monitorPlayer() {
+    for(;;) {
+        wait 1;
+        checkPlayer();
+    }
+}
+
+// GOOD - Thread ends on disconnect
+monitorPlayer() {
+    self endon("disconnect");
+    self endon("death");
+    
+    for(;;) {
+        wait 1;
+        checkPlayer();
+    }
+}
+```
+
+### Not Validating Variables
+
+```gsc
+// BAD
+processData() {
+    value = self.customData;
+    result = value + 10; // Crashes if customData is undefined
+}
+
+// GOOD
+processData() {
+    if (!isDefined(self.customData)) {
+        self.customData = 0;
+    }
+    value = self.customData;
+    result = value + 10;
+}
+```
+
+## Project Structure
+
+Organize your scripts logically:
+
+```
+main/
+├── maps/mp/
+│   ├── gametypes/
+│   │   ├── dm.gsc              # Deathmatch gametype
+│   │   ├── _custom/
+│   │   │   ├── _welcome.gsc    # Welcome messages
+│   │   │   ├── _stats.gsc      # Statistics tracking
+│   │   │   └── _commands.gsc   # Custom commands
+│   │   └── _callbacksetup.gsc  # Callback setup
+│   └── mp_map.gsc              # Map-specific script
+└── unleashed/
+    ├── http.gsc                 # HTTP utilities
+    ├── json.gsc                 # JSON utilities
+    └── array.gsc                # Array utilities
+```
+
+## Next Steps
+
+Now that you understand the basics, explore:
+
+<CardGroup cols={2}>
+  <Card title="GSC Overview" icon="book" href="/scripting/overview">
+    Learn more about GSC features and syntax
+  </Card>
+  <Card title="Server Functions" icon="code" href="/scripting/server/utilities">
+    Browse all available server functions
+  </Card>
+  <Card title="Player Methods" icon="user" href="/scripting/player/info">
+    Discover player-specific functions
+  </Card>
+  <Card title="Advanced Topics" icon="lightbulb" href="/scripting/advanced/json">
+    Learn about JSON, arrays, and HUD elements
+  </Card>
+</CardGroup>

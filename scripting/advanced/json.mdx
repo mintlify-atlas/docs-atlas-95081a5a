@@ -1,0 +1,202 @@
+---
+title: JSON Functions
+description: Parse and manipulate JSON data in CoD4 Unleashed scripts
+---
+
+The JSON module provides functions to convert between GSC arrays/objects and JSON strings, enabling easy data serialization and deserialization.
+
+## Module Import
+
+```gsc
+#include unleashed\json;
+```
+
+## Functions
+
+### encode()
+
+Encodes a GSC array or object into a JSON string.
+
+<CodeGroup>
+```gsc Encoding Arrays
+arr = [];
+arr[arr.size] = "abc";
+arr[arr.size] = "123";
+arr[arr.size] = "xyz";
+str = unleashed\json::encode(arr);
+// Returns: ["abc","123","xyz"]
+```
+
+```gsc Encoding Objects
+obj = [];
+obj["name"] = "John";
+obj["age"] = 25;
+obj["active"] = true;
+str = unleashed\json::encode(obj);
+// Returns: {"name":"John","age":25,"active":true}
+```
+
+```gsc Nested Structures
+player = [];
+player["name"] = "John";
+player["stats"] = [];
+player["stats"]["kills"] = 10;
+player["stats"]["deaths"] = 5;
+str = unleashed\json::encode(player);
+// Returns: {"name":"John","stats":{"kills":10,"deaths":5}}
+```
+</CodeGroup>
+
+**Parameters:**
+- `obj` - Array or object to encode
+
+**Returns:** JSON string representation
+
+<Note>
+The function automatically detects whether to encode as a JSON array or object based on the keys. Sequential numeric keys starting from 0 produce arrays, while string keys or non-sequential numbers produce objects.
+</Note>
+
+### decode()
+
+Decodes a JSON string into a GSC array or object.
+
+<CodeGroup>
+```gsc Decoding Objects
+jsonStr = "{\"msg\": \"Hello world!\"}";
+obj = unleashed\json::decode(jsonStr);
+iPrintLn(obj["msg"]); // Prints: Hello world!
+```
+
+```gsc Decoding Arrays
+jsonStr = "[\"red\",\"green\",\"blue\"]";
+arr = unleashed\json::decode(jsonStr);
+iPrintLn(arr[0]); // Prints: red
+```
+
+```gsc Complex Nested Data
+jsonStr = "{\"players\":[{\"name\":\"John\",\"score\":100},{\"name\":\"Jane\",\"score\":150}]}";
+data = unleashed\json::decode(jsonStr);
+for (i = 0; i < data["players"].size; i++) {
+    player = data["players"][i];
+    iPrintLn(player["name"] + ": " + player["score"]);
+}
+```
+
+```gsc Data Types
+jsonStr = "{\"string\":\"text\",\"number\":42,\"bool\":true,\"null\":false}";
+obj = unleashed\json::decode(jsonStr);
+// obj["string"] = "text"
+// obj["number"] = 42.0 (float)
+// obj["bool"] = true
+// obj["null"] = false
+```
+</CodeGroup>
+
+**Parameters:**
+- `str` - JSON string to decode
+
+**Returns:** GSC array or object
+
+<Info>
+The decoder supports:
+- Objects (curly braces)
+- Arrays (square brackets)
+- Strings (quoted)
+- Numbers (converted to float)
+- Booleans (`true`/`false`)
+- Nested structures
+</Info>
+
+## Usage Examples
+
+### Saving Player Data
+
+```gsc
+savePlayerData(player) {
+    data = [];
+    data["name"] = player.name;
+    data["guid"] = player.guid;
+    data["stats"] = [];
+    data["stats"]["kills"] = player.pers["kills"];
+    data["stats"]["deaths"] = player.pers["deaths"];
+    
+    jsonStr = unleashed\json::encode(data);
+    // Save jsonStr to file or database
+    return jsonStr;
+}
+```
+
+### Loading Configuration
+
+```gsc
+loadConfig() {
+    // Read JSON string from file
+    jsonStr = readConfigFile("config.json");
+    
+    config = unleashed\json::decode(jsonStr);
+    
+    level.maxScore = config["maxScore"];
+    level.timeLimit = config["timeLimit"];
+    level.enableKillstreaks = config["features"]["killstreaks"];
+}
+```
+
+### API Communication
+
+```gsc
+sendToAPI(endpoint, data) {
+    jsonPayload = unleashed\json::encode(data);
+    
+    response = httpPost(endpoint, jsonPayload);
+    
+    if (isDefined(response)) {
+        result = unleashed\json::decode(response);
+        return result;
+    }
+    return undefined;
+}
+```
+
+## Implementation Details
+
+<Warning>
+**Escaping:** The JSON module does not automatically escape special characters in strings. Be cautious when encoding strings containing quotes or backslashes.
+</Warning>
+
+### Type Handling
+
+| GSC Type | JSON Encoding |
+|----------|---------------|
+| String | `"string"` |
+| Number | `42` or `3.14` |
+| Boolean | `true` or `false` |
+| Array (sequential) | `[...]` |
+| Array (associative) | `{...}` |
+
+### Array vs Object Detection
+
+The encoder determines whether to create a JSON array or object by examining the keys:
+
+```gsc
+// Creates JSON array
+arr[0] = "a";
+arr[1] = "b";
+arr[2] = "c";
+// Result: ["a","b","c"]
+
+// Creates JSON object
+obj["first"] = "a";
+obj["second"] = "b";
+// Result: {"first":"a","second":"b"}
+
+// Creates JSON object (non-sequential)
+arr[0] = "a";
+arr[5] = "b";
+// Result: {"0":"a","5":"b"}
+```
+
+## See Also
+
+- [File System Functions](/scripting/file-operations) - Read/write JSON files
+- [HTTP Functions](/scripting/http) - Send/receive JSON over HTTP
+- [Array Functions](/scripting/advanced/arrays) - Manipulate data structures

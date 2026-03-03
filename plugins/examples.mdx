@@ -1,0 +1,642 @@
+---
+title: Plugin Examples
+description: Real plugin examples from the CoD4 Unleashed Server codebase
+---
+
+## Overview
+
+This page contains complete, working examples from the official CoD4 Unleashed Server plugin codebase. These examples demonstrate real-world usage of the plugin API.
+
+<Note>
+All examples are from the `plugins/` directory in the source code.
+</Note>
+
+## Hello World (C++)
+
+A minimal C++ plugin that demonstrates the basic structure.
+
+### Source Code
+
+```cpp cpptest_plugin.cpp
+#include "../pinc.h"
+#include <cstring>
+#include <string>
+
+/*
+===========================
+    OnInit callback
+ This is a function called
+  right after the plugin
+        is loaded.
+===========================
+*/
+
+PCL int OnInit() {
+    Com_Printf("Hello, world! :D\n");
+    return 0;  // 0 => Initialization successful
+}
+
+/*
+============================
+   OnInfoRequest callback
+ This function is mandatory
+============================
+*/
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    // MANDATORY: Handler version
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    // OPTIONAL: Plugin metadata
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    strncpy(info->fullName, "An example C++ plugin.", sizeof(info->fullName));
+    strncpy(info->shortDescription, "This is the plugin's short description.", 
+            sizeof(info->shortDescription));
+    strncpy(info->longDescription, "This is the plugin's long description.", 
+            sizeof(info->longDescription));
+}
+```
+
+### Build Script
+
+```bash makedll32
+#!/bin/bash
+gcc -m32 -Wall -O1 -s -fPIC -shared -o cpptest.so cpptest_plugin.cpp
+```
+
+### Usage
+
+<Steps>
+  <Step title="Compile">
+    ```bash
+    chmod +x makedll32
+    ./makedll32
+    ```
+  </Step>
+  
+  <Step title="Load">
+    ```bash
+    loadPlugin cpptest
+    ```
+    
+    Output:
+    ```
+    Hello, world! :D
+    Plugin cpptest loaded successfully.
+    ```
+  </Step>
+</Steps>
+
+## Anti-Spam Plugin
+
+A complete chat spam prevention plugin written in C. This demonstrates:
+- Event handling (`OnMessageSent`)
+- CVars for configuration
+- Player data tracking
+- Memory management
+- Time-based logic
+
+### Source Code
+
+```c antispam_plugin.c
+#include <time.h>
+#include "../pinc.h"
+
+#define ANTISPAM_MAXMESSAGES 30
+
+// Per-player data structure
+typedef struct {
+    int lastMessage;
+    int messages[ANTISPAM_MAXMESSAGES];
+} userData_t;
+
+// Plugin global data
+typedef struct {
+    userData_t *players;
+    int maxPlayers;
+    cvar_t *maxMPM;   // Max messages per minute
+    cvar_t *minAP;    // Min admin power
+    cvar_t *minMD;    // Min message delay
+    cvar_t *renMD;    // Renewed message delay
+} antispam_t;
+
+antispam_t data;
+
+void Antispam_Initialize() {
+    if (data.players != NULL) {
+        // Safe to call on already freed pointers
+        Plugin_Free(data.players);
+    }
+    
+    data.maxPlayers = Plugin_GetSlotCount();
+    data.players = (userData_t *)Plugin_Malloc(sizeof(userData_t) * data.maxPlayers);
+    memset(data.players, 0x00, sizeof(userData_t) * data.maxPlayers);
+}
+
+PCL int OnInit() {
+    data.maxPlayers = Plugin_GetSlotCount();
+    
+    // Register configuration cvars
+    data.maxMPM = Plugin_Cvar_RegisterFloat(
+        "antispam_maxMessagesPerMinute",
+        8,      // Default: 8 messages per minute
+        0,      // Min: 0 (disable chat)
+        30,     // Max: 30 messages per minute
+        0,
+        "Count of maximum messages a player can send in a minute. 0 disables chat."
+    );
+    
+    data.minAP = Plugin_Cvar_RegisterInt(
+        "antispam_minAdminPower",
+        50,     // Default: 50 (admin level)
+        0,
+        100,
+        0,
+        "Minimum power points which disable the check. 0 means enabled for everyone."
+    );
+    
+    data.minMD = Plugin_Cvar_RegisterInt(
+        "antispam_minMessageDelay",
+        4,      // Default: 4 seconds between messages
+        0,
+        60,
+        0,
+        "Time after sending a message before player can chat again. 0 disables."
+    );
+    
+    data.renMD = Plugin_Cvar_RegisterBool(
+        "antispam_renewedMessageDelay",
+        qfalse,
+        0,
+        "Do messages sent before minMessageDelay passes prolong the delay?"
+    );
+    
+    Antispam_Initialize();
+    return 0;
+}
+
+PCL void OnMessageSent(char *message, int slot, qboolean *show, int type) {
+    // Don't process if message is already hidden
+    if (!(*show))
+        return;
+    
+    if (!message) {
+        *show = qfalse;
+        return;
+    }
+    
+    int uid = Plugin_GetPlayerUid(slot);
+    time_t t = time(NULL);
+    
+    // Admins bypass the check
+    if (data.minAP->integer != 0 && uid >= data.minAP->integer) {
+        return;
+    }
+    
+    // Check minimum delay between messages
+    if (data.minMD->integer != 0 && 
+        (t - data.players[slot].lastMessage < data.minMD->integer)) {
+        *show = qfalse;
+        
+        if (data.renMD->boolean)
+            data.players[slot].lastMessage = t;
+        
+        return;
+    }
+    
+    // Max messages per minute check
+    int i, j = 0;
+    
+    // Remove messages older than 60 seconds
+    for (i = 0; 
+         (i < ANTISPAM_MAXMESSAGES) && 
+         (data.players[slot].messages[i] != 0) && 
+         (t - data.players[slot].messages[i] > 60); 
+         ++i);
+    
+    // Shift array to remove old messages
+    if (i != 0) {
+        for (j = 0; 
+             j < ANTISPAM_MAXMESSAGES && 
+             i < ANTISPAM_MAXMESSAGES && 
+             data.players[slot].messages[j] != 0; 
+             ++i, ++j) {
+            data.players[slot].messages[j] = data.players[slot].messages[i];
+            data.players[slot].messages[i] = 0;
+        }
+    }
+    
+    // Clear remaining slots
+    for (i = j; i < ANTISPAM_MAXMESSAGES; ++i) {
+        data.players[slot].messages[i] = 0;
+    }
+    
+    // j now holds count of messages in last 60 seconds
+    if (j < data.maxMPM->integer) {
+        // Allow the message
+        data.players[slot].messages[j] = t;
+        data.players[slot].lastMessage = t;
+        *show = qtrue;
+    } else {
+        // Block the message
+        *show = qfalse;
+        int waitTime = 60 - (t - data.players[slot].messages[0]);
+        Plugin_ChatPrintf(slot, 
+            "^2AntiSpam: you can send next chat message in %d seconds.", 
+            waitTime);
+    }
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    
+    strncpy(info->fullName, 
+            "IceOps antispam plugin by TheKelm", 
+            sizeof(info->fullName));
+    
+    strncpy(info->shortDescription, 
+            "This plugin is used to prevent spam in the ingame chat.", 
+            sizeof(info->shortDescription));
+    
+    strncpy(info->longDescription, 
+            "This plugin is used to prevent spam in the ingame chat. "
+            "To personalize the settings, set corresponding cvars. "
+            "Copyright (c) 2013 IceOps. Visit us at www.iceops.in", 
+            sizeof(info->longDescription));
+}
+```
+
+### Configuration
+
+```cfg server.cfg
+// Load the antispam plugin
+loadPlugin antispam
+
+// Configure settings
+set antispam_maxMessagesPerMinute "8"      // Max 8 messages per minute
+set antispam_minAdminPower "50"            // Admins (power 50+) bypass
+set antispam_minMessageDelay "4"           // 4 second delay between messages
+set antispam_renewedMessageDelay "0"       // Don't renew delay on spam
+```
+
+### Usage Scenarios
+
+<Tabs>
+  <Tab title="Basic Spam Prevention">
+    ```cfg
+    set antispam_maxMessagesPerMinute "10"
+    set antispam_minMessageDelay "2"
+    ```
+    
+    Allows 10 messages per minute with 2 seconds between each message.
+  </Tab>
+  
+  <Tab title="Strict Mode">
+    ```cfg
+    set antispam_maxMessagesPerMinute "5"
+    set antispam_minMessageDelay "5"
+    set antispam_renewedMessageDelay "1"
+    ```
+    
+    Very strict: 5 messages per minute, 5 seconds between messages, and trying to spam extends the delay.
+  </Tab>
+  
+  <Tab title="Admin-Only Chat">
+    ```cfg
+    set antispam_maxMessagesPerMinute "0"
+    set antispam_minAdminPower "50"
+    ```
+    
+    Completely disables chat for non-admins.
+  </Tab>
+</Tabs>
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card title="Time-Based Limiting" icon="clock">
+    Tracks messages over a 60-second sliding window
+  </Card>
+  
+  <Card title="Admin Bypass" icon="user-shield">
+    Admins with sufficient power level bypass restrictions
+  </Card>
+  
+  <Card title="Message Delay" icon="stopwatch">
+    Enforces minimum time between messages
+  </Card>
+  
+  <Card title="User Feedback" icon="message">
+    Tells players how long to wait before chatting again
+  </Card>
+</CardGroup>
+
+## Custom Commands Example
+
+Create custom server commands with this example.
+
+```c
+#include "../pinc.h"
+
+// Command: /teleport <x> <y> <z>
+void TeleportCommand_f(void) {
+    int argc = Plugin_Cmd_Argc();
+    int slot = Plugin_Cmd_GetInvokerSlot();
+    
+    // Must be called by a player
+    if (slot < 0) {
+        Com_Printf("This command must be used by a player\n");
+        return;
+    }
+    
+    // Check arguments
+    if (argc != 4) {
+        Plugin_ChatPrintf(slot, "^1Usage: teleport <x> <y> <z>");
+        return;
+    }
+    
+    // Parse coordinates
+    float x = atof(Plugin_Cmd_Argv(1));
+    float y = atof(Plugin_Cmd_Argv(2));
+    float z = atof(Plugin_Cmd_Argv(3));
+    
+    // Get player entity
+    gentity_t *ent = Plugin_GetGentityForEntityNum(slot);
+    if (ent == NULL) {
+        Plugin_ChatPrintf(slot, "^1Error: Could not get entity");
+        return;
+    }
+    
+    // Set origin (teleport)
+    ent->r.currentOrigin[0] = x;
+    ent->r.currentOrigin[1] = y;
+    ent->r.currentOrigin[2] = z;
+    
+    Plugin_ChatPrintf(slot, "^2Teleported to %.0f %.0f %.0f", x, y, z);
+    Com_Printf("%s teleported to %.0f %.0f %.0f\n", 
+               Plugin_GetPlayerName(slot), x, y, z);
+}
+
+// Command: /stats
+void StatsCommand_f(void) {
+    int slot = Plugin_Cmd_GetInvokerSlot();
+    
+    if (slot < 0) {
+        Com_Printf("This command must be used by a player\n");
+        return;
+    }
+    
+    // Get player stats
+    clientScoreboard_t stats = Plugin_GetClientScoreboard(slot);
+    char *name = Plugin_GetPlayerName(slot);
+    int uid = Plugin_GetPlayerUid(slot);
+    
+    // Display stats
+    Plugin_BoldPrintf(slot, "^2=== Your Statistics ===");
+    Plugin_ChatPrintf(slot, "^3Name: ^7%s", name);
+    Plugin_ChatPrintf(slot, "^3UID: ^7%d", uid);
+    Plugin_ChatPrintf(slot, "^3Kills: ^2%d", stats.kills);
+    Plugin_ChatPrintf(slot, "^3Deaths: ^1%d", stats.deaths);
+    Plugin_ChatPrintf(slot, "^3Assists: ^7%d", stats.assists);
+    Plugin_ChatPrintf(slot, "^3Score: ^7%d", stats.score);
+    
+    // Calculate K/D ratio
+    float kd = stats.deaths > 0 ? (float)stats.kills / stats.deaths : stats.kills;
+    Plugin_ChatPrintf(slot, "^3K/D Ratio: ^7%.2f", kd);
+}
+
+PCL int OnInit() {
+    // Register commands
+    Plugin_AddCommand("teleport", TeleportCommand_f, 80);  // Admin only
+    Plugin_AddCommand("stats", StatsCommand_f, 0);         // Anyone
+    
+    Com_Printf("Custom commands loaded!\n");
+    Com_Printf("  - teleport <x> <y> <z> (power 80)\n");
+    Com_Printf("  - stats (power 0)\n");
+    
+    return 0;
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    
+    strncpy(info->fullName, "Custom Commands Plugin", sizeof(info->fullName));
+    strncpy(info->shortDescription, "Adds teleport and stats commands", 
+            sizeof(info->shortDescription));
+}
+```
+
+## Player Welcome Message
+
+Simple plugin that welcomes players when they join.
+
+```c
+#include "../pinc.h"
+
+cvar_t *welcome_enabled;
+cvar_t *welcome_message;
+
+PCL int OnInit() {
+    welcome_enabled = Plugin_Cvar_RegisterBool(
+        "welcome_enabled",
+        qtrue,
+        CVAR_ARCHIVE,
+        "Enable welcome messages"
+    );
+    
+    welcome_message = Plugin_Cvar_RegisterString(
+        "welcome_message",
+        "^2Welcome to our server, ^7%s^2!",
+        CVAR_ARCHIVE,
+        "Welcome message (%s = player name)"
+    );
+    
+    return 0;
+}
+
+PCL void OnClientEnterWorld(int clientNum) {
+    // Check if enabled
+    if (!Plugin_Cvar_GetBoolean(welcome_enabled)) {
+        return;
+    }
+    
+    // Get player info
+    char *name = Plugin_GetPlayerName(clientNum);
+    const char *msg = Plugin_Cvar_GetString(welcome_message);
+    
+    // Format and send message
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), msg, name);
+    
+    Plugin_ChatPrintf(clientNum, buffer);
+    Plugin_BoldPrintf(clientNum, "^2Welcome!");
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    strncpy(info->fullName, "Welcome Message Plugin", sizeof(info->fullName));
+}
+```
+
+## GSC Integration Example
+
+Extend GSC with custom functions.
+
+```c
+#include "../pinc.h"
+
+// GSC Function: customDamage(player, amount)
+void GScr_CustomDamage() {
+    if (Plugin_Scr_GetNumParam() != 2) {
+        Plugin_Scr_Error("Usage: customDamage(player, amount)");
+        return;
+    }
+    
+    gentity_t *player = Plugin_Scr_GetEntity(0);
+    int damage = Plugin_Scr_GetInt(1);
+    
+    if (player == NULL) {
+        Plugin_Scr_Error("Invalid player entity");
+        return;
+    }
+    
+    // Apply damage (simplified)
+    player->health -= damage;
+    
+    if (player->health <= 0) {
+        player->health = 0;
+        Plugin_Scr_AddString("killed");
+    } else {
+        Plugin_Scr_AddString("damaged");
+    }
+}
+
+// GSC Function: getServerUptime()
+void GScr_GetServerUptime() {
+    int uptime = Plugin_GetServerTime() / 1000;  // Convert to seconds
+    Plugin_Scr_AddInt(uptime);
+}
+
+PCL int OnInit() {
+    Plugin_ScrAddFunction("customDamage", GScr_CustomDamage);
+    Plugin_ScrAddFunction("getServerUptime", GScr_GetServerUptime);
+    
+    Com_Printf("GSC functions registered\n");
+    return 0;
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    strncpy(info->fullName, "GSC Integration Plugin", sizeof(info->fullName));
+}
+```
+
+Use in GSC:
+
+```gsc
+result = customDamage(player, 50);
+iPrintLn("Result: " + result);
+
+uptime = getServerUptime();
+iPrintLn("Server uptime: " + uptime + " seconds");
+```
+
+## Best Practices from Examples
+
+<AccordionGroup>
+  <Accordion title="Memory Management">
+    Always use `Plugin_Malloc()` and `Plugin_Free()`:
+    
+    ```c
+    // Good
+    data = Plugin_Malloc(size);
+    Plugin_Free(data);
+    
+    // Bad - will cause issues!
+    data = malloc(size);
+    free(data);
+    ```
+  </Accordion>
+  
+  <Accordion title="Initialization">
+    Initialize all resources in `OnInit()`, return 0 for success:
+    
+    ```c
+    PCL int OnInit() {
+        // Register cvars
+        // Allocate memory
+        // Register commands
+        
+        return 0;  // Success
+        // return -1;  // Would fail loading
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Error Checking">
+    Always validate inputs and check for errors:
+    
+    ```c
+    void *data = Plugin_Malloc(size);
+    if (data == NULL) {
+        Plugin_Error(P_ERROR_DISABLE, "Out of memory");
+        return;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Configuration with CVars">
+    Make plugins configurable with cvars:
+    
+    ```c
+    cvar_t *enabled = Plugin_Cvar_RegisterBool(
+        "myplugin_enabled",
+        qtrue,
+        CVAR_ARCHIVE,  // Save to config
+        "Enable plugin features"
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Compilation
+
+All examples use the same build script:
+
+```bash makedll32
+#!/bin/bash
+
+# For C plugins
+gcc -m32 -Wall -O1 -s -fPIC -shared -o myplugin.so myplugin.c
+
+# For C++ plugins  
+g++ -m32 -Wall -O1 -s -fPIC -shared -o myplugin.so myplugin.cpp
+```
+
+<Warning>
+The `-m32` flag is **required** - plugins must be compiled as 32-bit.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/plugins/api-reference">
+    Detailed documentation of all plugin functions
+  </Card>
+  
+  <Card title="Development Guide" icon="code" href="/plugins/development">
+    Learn how to develop your own plugins
+  </Card>
+</CardGroup>

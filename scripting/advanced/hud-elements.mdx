@@ -1,0 +1,598 @@
+---
+title: HUD Elements
+description: Create and manipulate on-screen HUD elements in CoD4 Unleashed
+---
+
+HUD elements allow you to display custom text, images, and UI elements on players' screens. CoD4 Unleashed provides powerful functions to create and animate HUD elements.
+
+## Creating HUD Elements
+
+### newHudElem()
+
+Creates a new server-wide HUD element visible to all players.
+
+```gsc
+hudElem = newHudElem();
+hudElem.x = 320;
+hudElem.y = 240;
+hudElem setText("Server Message");
+```
+
+**Returns:** HUD element object
+
+<Note>
+Server HUD elements are visible to all players. Use `newClientHudElem()` for player-specific elements.
+</Note>
+
+### newClientHudElem()
+
+Creates a HUD element visible only to a specific player.
+
+```gsc
+OnPlayerSpawn() {
+    hud = newClientHudElem(self);
+    hud.x = 10;
+    hud.y = 10;
+    hud.alignX = "left";
+    hud.alignY = "top";
+    hud setText("Welcome " + self.name);
+}
+```
+
+**Parameters:**
+- `player` - Player entity
+
+**Returns:** HUD element object
+
+## HUD Element Properties
+
+### Position Properties
+
+```gsc
+hud.x = 320;              // X coordinate (0-640)
+hud.y = 240;              // Y coordinate (0-480)
+```
+
+<Info>
+CoD4 uses a 640x480 coordinate system regardless of actual screen resolution.
+</Info>
+
+### Alignment Properties
+
+<CodeGroup>
+```gsc Element Alignment
+hud.alignX = "left";      // "left", "center", "right"
+hud.alignY = "top";       // "top", "middle", "bottom"
+```
+
+```gsc Screen Alignment
+hud.horzAlign = "left";   // Horizontal screen anchor
+hud.vertAlign = "top";    // Vertical screen anchor
+```
+
+```gsc Example: Bottom-Right
+hud.x = -10;              // 10 pixels from right edge
+hud.y = -10;              // 10 pixels from bottom edge
+hud.alignX = "right";
+hud.alignY = "bottom";
+hud.horzAlign = "right";
+hud.vertAlign = "bottom";
+```
+</CodeGroup>
+
+### Text Properties
+
+```gsc
+hud.font = "objective";     // Font type
+hud.fontScale = 1.5;        // Text size (1.4 - 4.6)
+hud.label = &"Score: ";     // Localized label
+```
+
+#### Font Types
+
+| Font | Description | Usage |
+|------|-------------|-------|
+| `default` | Standard game font | General text |
+| `bigfixed` | Large monospace | Timers, scores |
+| `smallfixed` | Small monospace | Detailed info |
+| `objective` | Bold objective font | Important messages |
+
+<Warning>
+Font scale must be between 1.4 and 4.6. Values outside this range will be clamped to 1.4.
+</Warning>
+
+### Color Properties
+
+<CodeGroup>
+```gsc RGB Colors
+hud.color = (1, 0, 0);     // Red
+hud.color = (0, 1, 0);     // Green
+hud.color = (0, 0, 1);     // Blue
+hud.color = (1, 1, 1);     // White
+```
+
+```gsc With Alpha
+hud.alpha = 1.0;            // Fully opaque
+hud.alpha = 0.5;            // 50% transparent
+hud.alpha = 0.0;            // Invisible
+```
+
+```gsc Glow Effect
+hud.glowColor = (1, 0.5, 0);  // Orange glow
+hud.glowAlpha = 0.8;          // Glow intensity
+```
+</CodeGroup>
+
+### Display Properties
+
+```gsc
+hud.archived = true;          // Save across round changes
+hud.hideWhenInMenu = true;    // Hide when menu open
+hud.foreground = true;        // Draw in foreground
+hud.sort = 1;                 // Draw order (higher = front)
+```
+
+## Text Methods
+
+### setText()
+
+Sets the element's text content.
+
+<CodeGroup>
+```gsc Static Text
+hud setText("Game Over");
+```
+
+```gsc Dynamic Text
+hud setText("Players: " + level.players.size);
+```
+
+```gsc Localized Text
+hud setText(&"MP_WAITING_FOR_PLAYERS");
+```
+</CodeGroup>
+
+**Parameters:**
+- `text` - String or localized string reference
+
+### setValue()
+
+Sets a numeric value with automatic formatting.
+
+```gsc
+scoreHud setValue(self.score);
+timeHud setValue(getTime() / 1000);
+```
+
+**Parameters:**
+- `value` - Number to display
+
+### setTimer()
+
+Displays a countdown timer.
+
+<CodeGroup>
+```gsc Countdown
+timerHud setTimer(30);        // 30 second countdown
+```
+
+```gsc Count Up
+timerHud setTenthsTimer(0);   // Count up from 0
+```
+
+```gsc Stop Timer
+timerHud destroyElem();       // Remove when done
+```
+</CodeGroup>
+
+**Parameters:**
+- `duration` - Time in seconds
+
+## Animation Methods
+
+### moveOverTime()
+
+Animates the element to a new position.
+
+<CodeGroup>
+```gsc Slide In
+hud.x = -100;                 // Start off-screen
+hud moveOverTime(0.5);        // 0.5 second animation
+hud.x = 10;                   // End position
+```
+
+```gsc Slide Out
+hud moveOverTime(0.3);
+hud.x = 700;                  // Move off-screen right
+wait 0.3;
+hud destroy();
+```
+</CodeGroup>
+
+**Parameters:**
+- `time` - Animation duration in seconds (0-60)
+
+<Note>
+Set the new position **after** calling `moveOverTime()`. The element animates from its current position to the newly set position.
+</Note>
+
+### fadeOverTime()
+
+Animates the element's opacity.
+
+<CodeGroup>
+```gsc Fade In
+hud.alpha = 0;
+hud fadeOverTime(1.0);
+hud.alpha = 1;
+```
+
+```gsc Fade Out
+hud fadeOverTime(0.5);
+hud.alpha = 0;
+wait 0.5;
+hud destroy();
+```
+
+```gsc Pulse Effect
+for (i = 0; i < 3; i++) {
+    hud fadeOverTime(0.3);
+    hud.alpha = 0.3;
+    wait 0.3;
+    hud fadeOverTime(0.3);
+    hud.alpha = 1;
+    wait 0.3;
+}
+```
+</CodeGroup>
+
+**Parameters:**
+- `time` - Animation duration in seconds (0-60)
+
+### scaleOverTime()
+
+Animates font size changes.
+
+```gsc
+hud.fontScale = 1.4;
+hud scaleOverTime(0.5, 3.0);  // Grow to size 3.0
+wait 0.5;
+hud scaleOverTime(0.5, 1.4);  // Shrink back
+```
+
+**Parameters:**
+- `time` - Animation duration
+- `scale` - Target font scale
+
+## Destruction
+
+### destroy()
+
+Removes the HUD element immediately.
+
+```gsc
+hud destroy();
+```
+
+<Warning>
+Always destroy HUD elements when no longer needed to prevent exceeding the limit of 1024 elements.
+</Warning>
+
+### destroyElem()
+
+Alias for `destroy()`.
+
+```gsc
+hud destroyElem();
+```
+
+## C API Functions
+
+The following C functions are available through the scripting VM:
+
+### G_GetNewHudElem()
+
+Low-level function to create HUD elements from C code.
+
+```c
+game_hudelem_t* G_GetNewHudElem(unsigned int clientnum);
+```
+
+### G_HudSetPosition()
+
+Sets element position with alignment.
+
+```c
+void G_HudSetPosition(game_hudelem_t* element, float x, float y,
+                      hudscrnalign_t scrnhalign, hudscrnalign_t scrnvalign,
+                      hudalign_t alignx, hudalign_t aligny);
+```
+
+### G_HudSetFont()
+
+Configures font properties.
+
+```c
+void G_HudSetFont(game_hudelem_t* element, float fontscale, fonttype_t fonttype);
+```
+
+**Font Types:**
+- `HUDFONT_DEFAULT` (0)
+- `HUDFONT_BIGFIXED` (1)
+- `HUDFONT_SMALLFIXED` (2)
+- `HUDFONT_OBJECTIVE` (3)
+
+### G_HudSetColor()
+
+Sets color and glow color.
+
+```c
+void G_HudSetColor(game_hudelem_t* element, ucolor_t color, ucolor_t glowcolor);
+```
+
+### G_HudSetText()
+
+Sets display text.
+
+```c
+void G_HudSetText(game_hudelem_t* element, const char* text);
+```
+
+### G_HudSetMovingOverTime()
+
+Animates position change.
+
+```c
+void G_HudSetMovingOverTime(game_hudelem_t* element, int time, float newx, float newy);
+```
+
+### G_HudSetFadingOverTime()
+
+Animates color/alpha change.
+
+```c
+void G_HudSetFadingOverTime(game_hudelem_t* element, int time, ucolor_t newcolor);
+```
+
+### G_HudDestroy()
+
+Destroys a HUD element.
+
+```c
+void G_HudDestroy(game_hudelem_t* element);
+```
+
+## Complete Examples
+
+### Kill Feed
+
+```gsc
+showKillFeed(attacker, victim) {
+    hud = newHudElem();
+    hud.x = 10;
+    hud.y = 10;
+    hud.alignX = "left";
+    hud.alignY = "top";
+    hud.horzAlign = "left";
+    hud.vertAlign = "top";
+    hud.fontScale = 1.4;
+    hud.alpha = 0;
+    hud setText(attacker.name + " killed " + victim.name);
+    
+    // Fade in
+    hud fadeOverTime(0.3);
+    hud.alpha = 1;
+    wait 0.3;
+    
+    // Hold
+    wait 3;
+    
+    // Fade out
+    hud fadeOverTime(0.5);
+    hud.alpha = 0;
+    wait 0.5;
+    
+    hud destroy();
+}
+```
+
+### Countdown Timer
+
+```gsc
+showCountdown(duration) {
+    timer = newHudElem();
+    timer.x = 320;
+    timer.y = 50;
+    timer.alignX = "center";
+    timer.alignY = "top";
+    timer.horzAlign = "center";
+    timer.vertAlign = "top";
+    timer.font = "objective";
+    timer.fontScale = 3.0;
+    timer.color = (1, 1, 0);
+    timer.glowColor = (1, 0.5, 0);
+    timer.glowAlpha = 1;
+    timer setTimer(duration);
+    
+    // Pulse effect in last 5 seconds
+    wait (duration - 5);
+    timer.color = (1, 0, 0);
+    
+    for (i = 0; i < 5; i++) {
+        timer scaleOverTime(0.5, 4.0);
+        wait 0.5;
+        timer scaleOverTime(0.5, 3.0);
+        wait 0.5;
+    }
+    
+    timer destroy();
+}
+```
+
+### Player Score Display
+
+```gsc
+OnPlayerSpawn() {
+    self.scoreHud = newClientHudElem(self);
+    self.scoreHud.x = 320;
+    self.scoreHud.y = 420;
+    self.scoreHud.alignX = "center";
+    self.scoreHud.alignY = "bottom";
+    self.scoreHud.horzAlign = "center";
+    self.scoreHud.vertAlign = "bottom";
+    self.scoreHud.fontScale = 1.8;
+    self.scoreHud.font = "bigfixed";
+    self.scoreHud.archived = true;
+    self.scoreHud.label = &"Score: ";
+    self.scoreHud setValue(self.score);
+    
+    self thread watchScore();
+}
+
+watchScore() {
+    self endon("disconnect");
+    
+    lastScore = self.score;
+    
+    while (true) {
+        if (self.score != lastScore) {
+            self.scoreHud setValue(self.score);
+            
+            // Pulse on score change
+            self.scoreHud scaleOverTime(0.1, 2.5);
+            wait 0.1;
+            self.scoreHud scaleOverTime(0.2, 1.8);
+            
+            lastScore = self.score;
+        }
+        wait 0.05;
+    }
+}
+```
+
+### Welcome Message
+
+```gsc
+OnPlayerConnect() {
+    title = newClientHudElem(self);
+    title.x = 320;
+    title.y = 150;
+    title.alignX = "center";
+    title.alignY = "middle";
+    title.horzAlign = "center";
+    title.vertAlign = "middle";
+    title.font = "objective";
+    title.fontScale = 2.5;
+    title.color = (0, 1, 0);
+    title.alpha = 0;
+    title setText("Welcome to the Server");
+    
+    subtitle = newClientHudElem(self);
+    subtitle.x = 320;
+    subtitle.y = 180;
+    subtitle.alignX = "center";
+    subtitle.alignY = "middle";
+    subtitle.horzAlign = "center";
+    subtitle.vertAlign = "middle";
+    subtitle.fontScale = 1.6;
+    subtitle.alpha = 0;
+    subtitle setText(self.name);
+    
+    // Slide in from top
+    title.y = 100;
+    subtitle.y = 130;
+    
+    title fadeOverTime(0.5);
+    title.alpha = 1;
+    title moveOverTime(0.5);
+    title.y = 150;
+    
+    subtitle fadeOverTime(0.5);
+    subtitle.alpha = 1;
+    subtitle moveOverTime(0.5);
+    subtitle.y = 180;
+    
+    wait 3;
+    
+    // Fade out
+    title fadeOverTime(0.5);
+    title.alpha = 0;
+    subtitle fadeOverTime(0.5);
+    subtitle.alpha = 0;
+    
+    wait 0.5;
+    
+    title destroy();
+    subtitle destroy();
+}
+```
+
+## Limits and Best Practices
+
+<Warning>
+**Maximum Elements:** The server supports up to 1024 HUD elements total (shared across all players and server HUD elements).
+</Warning>
+
+### Best Practices
+
+1. **Always destroy** unused HUD elements
+2. **Use client HUD elements** for player-specific UI
+3. **Reuse elements** when possible instead of creating new ones
+4. **Set `archived = false`** for temporary elements
+5. **Limit animations** to avoid performance issues
+6. **Test with multiple players** to ensure element limit isn't exceeded
+
+### Performance Tips
+
+```gsc
+// Bad: Creates new element every second
+while (true) {
+    hud = newHudElem();
+    hud setText("Time: " + getTime());
+    wait 1;
+    // Never destroyed!
+}
+
+// Good: Reuses same element
+hud = newHudElem();
+while (true) {
+    hud setText("Time: " + getTime());
+    wait 1;
+}
+```
+
+## Alignment Reference
+
+### Horizontal Alignment Constants
+
+```c
+HUDALIGN_LEFT = 0
+HUDALIGN_CENTER = 4
+HUDALIGN_RIGHT = 8
+```
+
+### Vertical Alignment Constants
+
+```c
+HUDALIGN_TOP = 0
+HUDALIGN_MIDDLE = 1
+HUDALIGN_BOTTOM = 2
+```
+
+### Screen Alignment Constants
+
+```c
+HUDSCRNALIGN_LEFT = 9
+HUDSCRNALIGN_CENTER = 17
+HUDSCRNALIGN_RIGHT = 25
+
+HUDSCRNALIGN_TOP = 0
+HUDSCRNALIGN_MIDDLE = 1
+HUDSCRNALIGN_BOTTOM = 2
+```
+
+## See Also
+
+- [Player Functions](/scripting/player) - Player-specific operations
+- [String Functions](/scripting/strings) - Text formatting
+- [Animation Functions](/scripting/animation) - Entity animations

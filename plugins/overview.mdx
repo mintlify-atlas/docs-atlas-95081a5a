@@ -1,0 +1,225 @@
+---
+title: Plugin System Overview
+description: Understand the CoD4 Unleashed Server plugin architecture and capabilities
+---
+
+## What are Plugins?
+
+The CoD4 Unleashed Server plugin system uses the IceOps Plugin API to provide powerful extensions for your game server. Plugins are shared library files (`.so` files on Linux) that can hook into server events, add custom commands, and interact with game state.
+
+<Note>
+Plugins are based on the IceOps Plugin API developed by Ninja and TheKelm of the IceOps-Team.
+</Note>
+
+## Architecture
+
+The plugin system is built with performance and security in mind:
+
+- **Maximum of 25 plugins** can be loaded simultaneously
+- Each plugin can register up to **20 commands**
+- Each plugin can have up to **36 script functions** and **36 script methods**
+- Plugins can export up to **50 functions** for use by other plugins
+- Each plugin has isolated memory management with up to **50 malloc allocations** tracked
+
+### Plugin Structure
+
+Every plugin must implement two core functions:
+
+<CodeGroup>
+
+```c C Plugin
+#include "../pinc.h"
+
+PCL int OnInit() {
+    // Initialize your plugin here
+    Com_Printf("Plugin loaded successfully!\n");
+    return 0; // Return 0 for success, negative for failure
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    // MANDATORY: Set handler version
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    // OPTIONAL: Plugin metadata
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    strncpy(info->fullName, "My Plugin", sizeof(info->fullName));
+    strncpy(info->shortDescription, "Does awesome things", sizeof(info->shortDescription));
+}
+```
+
+```cpp C++ Plugin
+#include "../pinc.h"
+#include <string>
+
+extern "C" {
+
+PCL int OnInit() {
+    Com_Printf("C++ Plugin loaded!\n");
+    return 0;
+}
+
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    strncpy(info->fullName, "My C++ Plugin", sizeof(info->fullName));
+}
+
+} // extern "C"
+```
+
+</CodeGroup>
+
+## Plugin Events
+
+Plugins can hook into various server events by implementing callback functions. All event callbacks are optional except `OnInit` and `OnInfoRequest`.
+
+### Available Events
+
+| Event | Description | Frequency |
+|-------|-------------|----------|
+| `OnFrame` | Called every server frame | ~20ms |
+| `OnOneSecond` | Called every second | 1s |
+| `OnTenSeconds` | Called every 10 seconds | 10s |
+| `OnPlayerConnect` | Player connects to server | Per connection |
+| `OnPlayerDC` | Player disconnects | Per disconnect |
+| `OnClientAuthorized` | Client passes authorization | Per client |
+| `OnClientSpawn` | Client spawns in game | Per spawn |
+| `OnClientEnterWorld` | Client enters game world | Per client |
+| `OnMessageSent` | Chat message sent | Per message |
+| `OnExitLevel` | Map is changing | Per map change |
+| `OnSpawnServer` | Server starts | Once |
+| `OnPreFastRestart` | Before fast_restart | Per restart |
+| `OnPostFastRestart` | After fast_restart | Per restart |
+| `OnClientUserinfoChanged` | Client info updated | Per change |
+| `OnClientMoveCommand` | Client movement command | Per frame/client |
+| `OnPlayerWantReservedSlot` | Reserved slot check | Per connection |
+| `OnTcpServerPacket` | TCP packet received | Per packet |
+| `OnUdpNetEvent` | UDP network event | Per event |
+| `OnUdpNetSend` | UDP packet send | Per send |
+| `OnFilesystemStarted` | Filesystem initialized | Once |
+
+<Warning>
+Most plugin functions are **not thread-safe**. Always call plugin API functions from within event callbacks or registered commands.
+</Warning>
+
+## Memory Management
+
+<Note>
+Always use `Plugin_Malloc()` and `Plugin_Free()` instead of standard C `malloc()` and `free()`.
+</Note>
+
+The plugin handler tracks all memory allocations to prevent memory leaks when plugins are unloaded:
+
+```c
+void* buffer = Plugin_Malloc(1024);
+if (buffer == NULL) {
+    Plugin_Error(P_ERROR_DISABLE, "Failed to allocate memory");
+    return;
+}
+
+// Use the buffer...
+
+Plugin_Free(buffer);
+```
+
+### Why Use Plugin Memory Functions?
+
+1. **Automatic cleanup**: Memory is freed when plugin unloads
+2. **Double-free protection**: Safe to call `Plugin_Free()` multiple times
+3. **Tracking**: Server monitors memory usage per plugin
+
+## Plugin Types
+
+### Regular Plugins
+
+Standard plugins that can be loaded and unloaded at runtime:
+
+```bash
+loadPlugin myplugin
+unloadPlugin myplugin
+```
+
+### Library Plugins
+
+Plugins that export functions for other plugins cannot be unloaded:
+
+```c
+// Exporting functions makes a plugin a "library plugin"
+PCL void MyExportedFunction() {
+    // This function can be called by other plugins
+}
+```
+
+<Warning>
+**Library plugins** and **script-library plugins** (those that add script functions/methods) cannot be unloaded during runtime for safety reasons.
+</Warning>
+
+## Secure Mode
+
+When the server runs in secure mode (`com_securemode` enabled), only plugins with verified checksums will load. This prevents unauthorized plugins from running on production servers.
+
+```c
+// From plugin_handler.c:178-240
+#define PLUGINCENSOR_HASH "bfb496df0acc1bd01a0789b8d35d8081143db883297206aa"
+#define PLUGINANTISPAM_HASH "7fc95f3902bd809a1e50a783fbb482044f67ad8927259a36"
+#define PLUGINGAMERANGER_HASH "6609a69715a41b486611fa1c461f90acfed836eac0e699d8"
+```
+
+## Commands
+
+The server provides built-in commands for managing plugins:
+
+<CardGroup cols={2}>
+  <Card title="loadPlugin" icon="download">
+    Load a plugin from the plugins/ directory
+    ```bash
+    loadPlugin myplugin
+    ```
+  </Card>
+  
+  <Card title="unloadPlugin" icon="trash">
+    Unload a running plugin
+    ```bash
+    unloadPlugin myplugin
+    ```
+  </Card>
+  
+  <Card title="plugins" icon="list">
+    List all loaded plugins
+    ```bash
+    plugins
+    ```
+  </Card>
+  
+  <Card title="pluginInfo" icon="info">
+    Show detailed info about a plugin
+    ```bash
+    pluginInfo myplugin
+    ```
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/plugins/installation">
+    Learn how to install plugins
+  </Card>
+  
+  <Card title="Development" icon="code" href="/plugins/development">
+    Start developing your own plugins
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/plugins/api-reference">
+    Explore the complete plugin API
+  </Card>
+  
+  <Card title="Examples" icon="lightbulb" href="/plugins/examples">
+    See real plugin examples
+  </Card>
+</CardGroup>

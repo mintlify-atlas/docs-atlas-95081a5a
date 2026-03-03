@@ -1,0 +1,514 @@
+---
+title: Configuration System
+description: Understanding cvars, config files, and the configuration system
+---
+
+The CoD4 Unleashed Server uses a flexible configuration variable (cvar) system inherited from the Quake 3 engine.
+
+## Cvar System Overview
+
+Cvars are the primary configuration mechanism. They can be registered by the engine, modified at runtime, and persisted to config files.
+
+### Cvar Types
+
+The server supports multiple cvar data types:
+
+<CodeGroup>
+```c cvar.h:32-42
+typedef enum {
+  CVAR_BOOL,    // Boolean value (0 or 1)
+  CVAR_FLOAT,   // Floating point number
+  CVAR_VEC2,    // 2D vector
+  CVAR_VEC3,    // 3D vector
+  CVAR_VEC4,    // 4D vector
+  CVAR_INT,     // Integer value
+  CVAR_ENUM,    // Enumerated value
+  CVAR_STRING,  // String value
+  CVAR_COLOR    // RGBA color value
+} cvarType_t;
+```
+</CodeGroup>
+
+### Cvar Structure
+
+Each cvar is represented by a `cvar_t` structure:
+
+<CodeGroup>
+```c cvar.h:54-102
+typedef struct cvar_s {
+  char* name;
+  char* description;
+  short int flags;
+  byte type;
+  byte modified;
+  
+  union {  // Current value
+    float floatval;
+    int integer;
+    char* string;
+    byte boolean;
+    vec2_t vec2;
+    vec3_t vec3;
+    vec4_t vec4;
+    ucolor_t color;
+  };
+  
+  union {  // Latched value (for CVAR_LATCH)
+    float latchedFloatval;
+    int latchedInteger;
+    char* latchedString;
+    byte latchedBoolean;
+    vec2_t latchedVec2;
+    vec3_t latchedVec3;
+    vec4_t latchedVec4;
+    ucolor_t latchedColor;
+  };
+  
+  union {  // Reset/default value
+    float resetFloatval;
+    int resetInteger;
+    char* resetString;
+    byte resetBoolean;
+    vec2_t resetVec2;
+    vec3_t resetVec3;
+    vec4_t resetVec4;
+    ucolor_t resetColor;
+  };
+  
+  union {  // Min/max limits
+    int imin;
+    float fmin;
+  };
+  
+  union {
+    int imax;
+    float fmax;
+    const char** enumStr;
+  };
+  
+  struct cvar_s* next;
+  struct cvar_s* hashNext;
+} cvar_t;
+```
+</CodeGroup>
+
+## Cvar Flags
+
+Flags control cvar behavior and access:
+
+<CodeGroup>
+```c cvar.h:226-248
+#define CVAR_ARCHIVE 1        // Save to config file
+#define CVAR_USERINFO 2       // Send to server on connect
+#define CVAR_SERVERINFO 4     // Send in server info responses
+#define CVAR_SYSTEMINFO 8     // Duplicated on all clients
+#define CVAR_INIT 16          // Only set from command line
+#define CVAR_LATCH 32         // Changes on map restart
+#define CVAR_ROM 64           // Read-only, cannot be changed
+#define CVAR_CHEAT 128        // Requires cheats enabled
+#define CVAR_TEMP 256         // Not archived
+#define CVAR_NORESTART 1024   // Don't clear on restart
+#define CVAR_USER_CREATED 16384  // Created by user command
+```
+</CodeGroup>
+
+<Accordion title="Flag Details">
+
+**CVAR_ARCHIVE**
+- Saved to config files (e.g., server.cfg)
+- Automatically loaded on startup
+
+**CVAR_USERINFO**
+- Part of client's userinfo string
+- Sent to server on connection
+- Examples: name, rate, snaps
+
+**CVAR_SERVERINFO**
+- Included in server info responses
+- Visible in server browser
+- Examples: sv_hostname, mapname, gametype
+
+**CVAR_LATCH**
+- Value changes only take effect after map restart
+- Prevents mid-game changes to critical settings
+- Examples: sv_maxclients, sv_pure
+
+**CVAR_ROM**
+- Cannot be modified by user
+- Set by engine only
+- Examples: version, shortversion
+
+**CVAR_CHEAT**
+- Only works when sv_cheats is enabled
+- Automatically reset when cheats disabled
+
+</Accordion>
+
+## Registering Cvars
+
+Cvars are registered using type-specific functions:
+
+<CodeGroup>
+```c cvar.h:107-131
+// String cvars
+cvar_t* Cvar_RegisterString(
+  const char* var_name,
+  const char* var_value,
+  unsigned short flags,
+  const char* var_description
+);
+
+// Integer cvars with range
+cvar_t* Cvar_RegisterInt(
+  const char* var_name,
+  int var_value,
+  int min_value,
+  int max_value,
+  unsigned short flags,
+  const char* var_description
+);
+
+// Float cvars with range
+cvar_t* Cvar_RegisterFloat(
+  const char* var_name,
+  float var_value,
+  float min_value,
+  float max_value,
+  unsigned short flags,
+  const char* var_description
+);
+
+// Boolean cvars
+cvar_t* Cvar_RegisterBool(
+  const char* var_name,
+  qboolean var_value,
+  unsigned short flags,
+  const char* var_description
+);
+```
+</CodeGroup>
+
+### Registration Example
+
+<CodeGroup>
+```c sv_main.c:54-118
+// Server cvars registered at startup
+sv_protocol = Cvar_RegisterInt("sv_protocol", 6, 1, 999, CVAR_ROM, "Protocol version");
+sv_maxclients = Cvar_RegisterInt("sv_maxclients", 64, 1, 64, CVAR_LATCH | CVAR_SERVERINFO, "Maximum clients");
+sv_hostname = Cvar_RegisterString("sv_hostname", "CoD4Host", CVAR_SERVERINFO | CVAR_ARCHIVE, "Server name");
+sv_fps = Cvar_RegisterInt("sv_fps", 20, 10, 1000, CVAR_LATCH, "Server frame rate");
+sv_pure = Cvar_RegisterBool("sv_pure", qtrue, CVAR_SERVERINFO, "Enable pure server");
+```
+</CodeGroup>
+
+<Info>
+Cvars are stored in a hash table for O(1) lookup performance. The hash function uses the cvar name.
+</Info>
+
+## Accessing Cvar Values
+
+### Reading Values
+
+<CodeGroup>
+```c cvar.h:170-194
+// Get string value
+char* Cvar_VariableString(const char* var_name);
+
+// Get integer value
+int Cvar_VariableIntegerValue(const char* var_name);
+
+// Get float value
+float Cvar_VariableValue(const char* var_name);
+
+// Get boolean value
+qboolean Cvar_VariableBooleanValue(const char* var_name);
+
+// Find cvar by name
+cvar_t* Cvar_FindVar(const char* var_name);
+
+// Direct access (after finding)
+int value = sv_maxclients->integer;
+float fps = sv_fps->value;
+char* name = sv_hostname->string;
+qboolean pure = sv_pure->boolean;
+```
+</CodeGroup>
+
+### Setting Values
+
+<CodeGroup>
+```c cvar.h:173-181
+// Set from string
+void Cvar_Set(const char* var_name, const char* value);
+
+// Type-specific setters
+void Cvar_SetInt(cvar_t* var, int val);
+void Cvar_SetFloat(cvar_t* var, float val);
+void Cvar_SetBool(cvar_t* var, qboolean val);
+void Cvar_SetString(cvar_t* var, const char* string);
+
+// Reset to default
+void Cvar_Reset(const char* var_name);
+void Cvar_ResetVar(cvar_t* var);
+```
+</CodeGroup>
+
+## Cvar Validation
+
+The cvar system enforces type safety and range validation:
+
+<CodeGroup>
+```c cvar.c:721-901
+static int Cvar_SetVariant(cvar_t* var, CvarValue value, qboolean force) {
+  // Check permissions
+  if (var->flags & CVAR_ROM) {
+    Com_Printf("%s is read only.\n", var->name);
+    return 0;
+  }
+  
+  if (var->flags & CVAR_INIT) {
+    Com_Printf("%s is write protected.\n", var->name);
+    return 0;
+  }
+  
+  if ((var->flags & CVAR_CHEAT) && !cvar_cheats->boolean) {
+    Com_Printf("%s is cheat protected.\n", var->name);
+    return 0;
+  }
+  
+  // Validate ranges for numeric types
+  switch (var->type) {
+    case CVAR_INT:
+      if (value.integer < var->imin || value.integer > var->imax) {
+        Com_Printf("'%d' is not valid for '%s'\n", value.integer, var->name);
+        Com_Printf("Domain is any integer between '%d' and '%d'\n", 
+                   var->imin, var->imax);
+        return -1;
+      }
+      break;
+      
+    case CVAR_FLOAT:
+      if (value.floatval < var->fmin || value.floatval > var->fmax) {
+        Com_Printf("'%g' is not valid for '%s'\n", value.floatval, var->name);
+        return -1;
+      }
+      break;
+  }
+  
+  // Apply value
+  var->modified = qtrue;
+  cvar_modifiedFlags |= var->flags;
+  return 1;
+}
+```
+</CodeGroup>
+
+<Warning>
+Attempting to set an invalid value (out of range, wrong type, etc.) will fail silently or print an error, but won't crash the server.
+</Warning>
+
+## Latched Cvars
+
+Some cvars use the `CVAR_LATCH` flag to delay changes:
+
+<CodeGroup>
+```c cvar.c:745-748
+if (var->flags & CVAR_LATCH) {
+  Com_Printf("%s will be changed upon restarting.\n", var->name);
+  latched = 1;
+}
+```
+</CodeGroup>
+
+<Accordion title="How Latching Works">
+
+1. **User sets value**: The new value is stored in the latched field
+2. **Current value unchanged**: The active value remains the same
+3. **Map restart**: On next map load, latched value becomes active
+4. **Prevents exploits**: Ensures critical settings can't change mid-game
+
+**Common latched cvars:**
+- `sv_maxclients` - Maximum player count
+- `sv_fps` - Server frame rate
+- `sv_pure` - Pure server mode
+
+</Accordion>
+
+## Config Files
+
+### Loading Configs
+
+The server loads config files in this order:
+
+1. **default.cfg** - Engine defaults
+2. **config.cfg** - User config
+3. **server.cfg** - Server-specific settings (if it exists)
+4. Command line parameters
+
+<CodeGroup>
+```bash
+# Start server with custom config
+./cod4x18_dedrun +set fs_game mods/mymod +exec myserver.cfg +map mp_crash
+
+# Command line overrides file settings
+./cod4x18_dedrun +set sv_maxclients 32 +exec server.cfg
+```
+</CodeGroup>
+
+### Saving Configs
+
+Only cvars with the `CVAR_ARCHIVE` flag are saved:
+
+<CodeGroup>
+```c cvar.c:1763-1798
+void Cvar_WriteVariables(fileHandle_t f) {
+  cvar_t* var;
+  char bufferval[8192];
+  char buffer[8192];
+  
+  for (var = cvar_vars; var; var = var->next) {
+    if (var->flags & CVAR_ARCHIVE) {
+      // Convert value to string
+      Cvar_ValueToStr(var, bufferval, sizeof(bufferval), NULL, 0, NULL, 0);
+      
+      // Write as seta command
+      Com_sprintf(buffer, sizeof(buffer), "seta %s \"%s\"\n", 
+                  var->name, bufferval);
+      FS_Write(buffer, strlen(buffer), f);
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+Use `seta` instead of `set` in config files to automatically add the `CVAR_ARCHIVE` flag.
+</Note>
+
+## Console Commands
+
+### Cvar Commands
+
+<CodeGroup>
+```bash
+# Print cvar value
+sv_hostname
+# Output: "sv_hostname" is: "My Server" default: "CoD4Host"
+
+# Set cvar value
+set sv_hostname "New Server Name"
+
+# Set with archive flag
+seta sv_maxRate 25000
+
+# Set as userinfo
+setu name "PlayerName"
+
+# Set as serverinfo
+sets mapname "mp_crash"
+
+# Toggle boolean
+toggle sv_pure
+
+# Reset to default
+reset sv_hostname
+
+# List all cvars
+cvarlist
+
+# List matching cvars
+cvarlist sv_*
+
+# Dump all cvars to file
+cvar_restart
+```
+</CodeGroup>
+
+## Cvar Iteration
+
+Iterate over all cvars using callbacks:
+
+<CodeGroup>
+```c cvar.c:1993-1999
+void Cvar_ForEach(void (*callback)(cvar_t const*, void*), void* handoverarg) {
+  cvar_t* var;
+  
+  for (var = cvar_vars; var; var = var->next) {
+    callback(var, handoverarg);
+  }
+}
+```
+</CodeGroup>
+
+### Example Usage
+
+<CodeGroup>
+```c
+void PrintCvar(cvar_t const* cvar, void* unused) {
+  Com_Printf("%s = %s\n", cvar->name, Cvar_DisplayableValue(cvar));
+}
+
+// Print all cvars
+Cvar_ForEach(PrintCvar, NULL);
+```
+</CodeGroup>
+
+## Server Cvars
+
+Key server configuration cvars:
+
+<AccordionGroup>
+  <Accordion title="Network Settings">
+    - `sv_maxclients` (1-64) - Maximum players
+    - `sv_maxRate` (0-25000) - Maximum client data rate
+    - `sv_fps` (10-1000) - Server frame rate
+    - `net_ip` - Bind IP address
+    - `net_port` (0-65535) - Server port
+  </Accordion>
+  
+  <Accordion title="Game Settings">
+    - `sv_hostname` - Server name in browser
+    - `sv_mapRotation` - Map rotation string
+    - `g_gametype` - Game type (dm, tdm, sd, etc.)
+    - `sv_pure` - Enable pure server
+    - `sv_cheats` - Enable cheat commands
+  </Accordion>
+  
+  <Accordion title="Authentication">
+    - `sv_authorizemode` - Authorization mode
+    - `sv_rconPassword` - Remote console password
+    - `sv_password` - Server password
+    - `sv_privatePassword` - Private slot password
+    - `sv_privateClients` - Reserved slots
+  </Accordion>
+  
+  <Accordion title="Downloads">
+    - `sv_allowDownload` - Allow file downloads
+    - `sv_wwwDownload` - Enable HTTP downloads
+    - `sv_wwwBaseURL` - HTTP download URL
+    - `sv_wwwDlDisconnected` - Allow downloads while disconnected
+  </Accordion>
+</AccordionGroup>
+
+## Cvar Limits
+
+The server has hard limits:
+
+- **MAX_CVARS**: 8192 cvars maximum (cvar.c:51)
+- **Hash table size**: 512 buckets (cvar.c:55)
+- **Name validation**: No backslashes, quotes, or semicolons (cvar.c:120-134)
+
+<Warning>
+Exceeding MAX_CVARS will cause a fatal error. User-created cvars count toward this limit.
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Server Architecture" href="/concepts/architecture">
+    Learn about server structure
+  </Card>
+  <Card title="Networking" href="/concepts/networking">
+    Network configuration options
+  </Card>
+</CardGroup>

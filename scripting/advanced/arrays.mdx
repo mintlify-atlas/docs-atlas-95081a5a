@@ -1,0 +1,452 @@
+---
+title: Array Functions
+description: Advanced array manipulation functions for CoD4 Unleashed scripts
+---
+
+The Array module provides JavaScript-style array methods for manipulating arrays in GSC scripts. These functions follow ES5 array conventions.
+
+## Module Import
+
+```gsc
+#include unleashed\array;
+```
+
+<Note>
+All array functions use `self` as the array to operate on. Call them using the `[[function]]()` syntax.
+</Note>
+
+## Iterator Functions
+
+### forEach()
+
+Calls a function for each element in the array.
+
+```gsc
+players = getAllPlayers();
+players [[unleashed\array::forEach]](::printPlayerName);
+
+printPlayerName(player, index, array) {
+    iPrintLn("Player " + index + ": " + player.name);
+}
+```
+
+**Parameters:**
+- `callback` - Function to execute for each element. Receives `(element, index, array)`
+
+**Returns:** Nothing
+
+### map()
+
+Creates a new array with the results of calling a function on every element.
+
+```gsc
+scores = [10, 20, 30];
+doubled = scores [[unleashed\array::mapArray]](::doubleValue);
+// Result: [20, 40, 60]
+
+doubleValue(value, index, array) {
+    return value * 2;
+}
+```
+
+<Info>
+The function is named `mapArray` (not `map`) to avoid conflicts with the built-in `map` keyword.
+</Info>
+
+**Parameters:**
+- `callback` - Function to execute on each element. Receives `(element, index, array)`
+
+**Returns:** New array with mapped values
+
+### filter()
+
+Creates a new array with elements that pass a test.
+
+<CodeGroup>
+```gsc Basic Filter
+scores = [50, 75, 30, 90, 45];
+highScores = scores [[unleashed\array::filter]](::isHighScore);
+// Result: [75, 90]
+
+isHighScore(score, index, array) {
+    return score >= 70;
+}
+```
+
+```gsc Filter Players
+players = level.players;
+alivePlayers = players [[unleashed\array::filter]](::isPlayerAlive);
+
+isPlayerAlive(player, index, array) {
+    return isAlive(player);
+}
+```
+</CodeGroup>
+
+**Parameters:**
+- `callback` - Function that returns true to keep element. Receives `(element, index, array)`
+
+**Returns:** New filtered array
+
+### find()
+
+Returns the first element that satisfies the test function.
+
+```gsc
+players = level.players;
+target = players [[unleashed\array::find]](::hasHighScore);
+
+hasHighScore(player, index, array) {
+    return player.score >= 1000;
+}
+```
+
+**Parameters:**
+- `callback` - Test function. Receives `(element, index, array)`
+
+**Returns:** First matching element or `undefined`
+
+### findIndex()
+
+Returns the index of the first element that satisfies the test function.
+
+```gsc
+names = ["John", "Jane", "Bob"];
+index = names [[unleashed\array::findIndex]](::isJane);
+// Result: 1
+
+isJane(name, index, array) {
+    return name == "Jane";
+}
+```
+
+**Parameters:**
+- `callback` - Test function. Receives `(element, index, array)`
+
+**Returns:** Index of first match or `-1`
+
+## Test Functions
+
+### every()
+
+Returns true if every element passes the test.
+
+```gsc
+scores = [80, 90, 85, 95];
+allPassed = scores [[unleashed\array::every]](::isPassing);
+// Result: true
+
+isPassing(score, index, array) {
+    return score >= 70;
+}
+```
+
+**Returns:** `true` if all elements pass, `false` otherwise
+
+### some()
+
+Returns true if at least one element passes the test.
+
+```gsc
+scores = [50, 60, 80, 45];
+anyPassed = scores [[unleashed\array::some]](::isPassing);
+// Result: true (80 passes)
+
+isPassing(score, index, array) {
+    return score >= 70;
+}
+```
+
+**Returns:** `true` if any element passes, `false` otherwise
+
+### includes()
+
+Determines whether an array contains a certain element.
+
+```gsc
+weapons = ["ak47", "m16", "mp5"];
+hasM16 = weapons [[unleashed\array::includes]]("m16");
+// Result: true
+```
+
+**Parameters:**
+- `item` - Element to search for
+
+**Returns:** `true` if found, `false` otherwise
+
+## Search Functions
+
+### indexOf()
+
+Returns the first index of an element.
+
+```gsc
+colors = ["red", "green", "blue", "green"];
+index = colors [[unleashed\array::indexOf]]("green");
+// Result: 1
+```
+
+**Returns:** Index of first occurrence or `-1`
+
+### lastIndexOf()
+
+Returns the last index of an element.
+
+```gsc
+colors = ["red", "green", "blue", "green"];
+index = colors [[unleashed\array::lastIndexOf]]("green");
+// Result: 3
+```
+
+**Returns:** Index of last occurrence or `-1`
+
+## Transformation Functions
+
+### reduce()
+
+Reduces array to a single value by applying a function.
+
+<CodeGroup>
+```gsc Sum Numbers
+numbers = [1, 2, 3, 4, 5];
+sum = numbers [[unleashed\array::reduce]](::add, 0);
+// Result: 15
+
+add(accumulator, value, index, array) {
+    return accumulator + value;
+}
+```
+
+```gsc Concatenate Strings
+words = ["Hello", "World", "!"];
+sentence = words [[unleashed\array::reduce]](::concat, "");
+// Result: "HelloWorld!"
+
+concat(acc, word, index, array) {
+    return acc + word;
+}
+```
+</CodeGroup>
+
+**Parameters:**
+- `callback` - Reducer function. Receives `(accumulator, element, index, array)`
+- `initialValue` - Starting value for accumulator
+
+**Returns:** Final accumulated value
+
+### reduceRight()
+
+Same as reduce but processes from right to left.
+
+```gsc
+words = ["!", "World", "Hello"];
+sentence = words [[unleashed\array::reduceRight]](::concat, "");
+// Result: "HelloWorld!"
+```
+
+## Modification Functions
+
+### push()
+
+Adds elements to the end of an array.
+
+<CodeGroup>
+```gsc Single Element
+arr = [1, 2, 3];
+arr = arr [[unleashed\array::push]](4);
+// Result: [1, 2, 3, 4]
+```
+
+```gsc Multiple Elements
+arr = [1, 2];
+toAdd = [3, 4, 5];
+arr = arr [[unleashed\array::push]](toAdd);
+// Result: [1, 2, 3, 4, 5]
+```
+</CodeGroup>
+
+**Parameters:**
+- `item` - Single element or array of elements to add
+
+**Returns:** New array with added elements
+
+### pop()
+
+Removes the last element from an array.
+
+```gsc
+arr = [1, 2, 3, 4];
+arr = arr [[unleashed\array::pop]]();
+// Result: [1, 2, 3]
+```
+
+**Returns:** New array without last element
+
+### shift()
+
+Removes the first element from an array.
+
+```gsc
+arr = [1, 2, 3, 4];
+arr = arr [[unleashed\array::shift]]();
+// Result: [2, 3, 4]
+```
+
+**Returns:** New array without first element
+
+### unshift()
+
+Adds elements to the beginning of an array.
+
+```gsc
+arr = [3, 4];
+arr = arr [[unleashed\array::unshift]]([1, 2]);
+// Result: [1, 2, 3, 4]
+```
+
+**Parameters:**
+- `item` - Single element or array of elements to add
+
+**Returns:** New array with prepended elements
+
+### splice()
+
+Adds and/or removes elements from an array.
+
+<CodeGroup>
+```gsc Remove Elements
+arr = [1, 2, 3, 4, 5];
+arr = arr [[unleashed\array::splice]](1, 2);
+// Removes 2 elements starting at index 1
+// Result: [1, 4, 5]
+```
+
+```gsc Remove and Insert
+arr = [1, 2, 5];
+arr = arr [[unleashed\array::splice]](2, 0, [3, 4]);
+// At index 2, remove 0, insert [3, 4]
+// Result: [1, 2, 3, 4, 5]
+```
+</CodeGroup>
+
+**Parameters:**
+- `start` - Index to start at (negative counts from end)
+- `deleteCount` - Number of elements to remove (optional)
+- `items` - Elements to insert (optional)
+
+**Returns:** Modified array
+
+### slice()
+
+Extracts a section of an array.
+
+<CodeGroup>
+```gsc Basic Slice
+arr = [1, 2, 3, 4, 5];
+sub = arr [[unleashed\array::slice]](1, 4);
+// Result: [2, 3, 4]
+```
+
+```gsc Negative Indices
+arr = [1, 2, 3, 4, 5];
+last2 = arr [[unleashed\array::slice]](-2);
+// Result: [4, 5]
+```
+</CodeGroup>
+
+**Parameters:**
+- `start` - Starting index (negative counts from end)
+- `end` - Ending index, exclusive (optional)
+
+**Returns:** New array containing extracted elements
+
+## Utility Functions
+
+### reverse()
+
+Reverses the order of elements.
+
+```gsc
+arr = [1, 2, 3, 4, 5];
+reversed = arr [[unleashed\array::reverse]]();
+// Result: [5, 4, 3, 2, 1]
+```
+
+**Returns:** New reversed array
+
+### join()
+
+Joins all elements into a string.
+
+```gsc
+words = ["Hello", "World", "!"];
+text = words [[unleashed\array::join]]();
+// Result: "HelloWorld!"
+```
+
+**Returns:** Concatenated string
+
+<Warning>
+Unlike JavaScript's `join()`, this function does not support a separator parameter. Elements are concatenated directly.
+</Warning>
+
+### getLength()
+
+Returns the number of elements in an array.
+
+```gsc
+arr = [1, 2, 3, 4, 5];
+len = arr [[unleashed\array::getLength]]();
+// Result: 5
+```
+
+**Returns:** Integer length
+
+<Note>
+This is equivalent to using `array.size` but provided for consistency with JavaScript conventions.
+</Note>
+
+## Complete Example
+
+```gsc
+processPlayerScores() {
+    // Get all player scores
+    players = level.players;
+    scores = players [[unleashed\array::mapArray]](::getPlayerScore);
+    
+    // Filter high scores
+    highScores = scores [[unleashed\array::filter]](::isHighScore);
+    
+    // Calculate average
+    total = highScores [[unleashed\array::reduce]](::add, 0);
+    average = total / highScores.size;
+    
+    // Find top scorer
+    topScore = highScores [[unleashed\array::reduce]](::max, 0);
+    
+    iPrintLn("Average high score: " + average);
+    iPrintLn("Top score: " + topScore);
+}
+
+getPlayerScore(player, index, array) {
+    return player.score;
+}
+
+isHighScore(score, index, array) {
+    return score >= 1000;
+}
+
+add(acc, val, index, array) {
+    return acc + val;
+}
+
+max(acc, val, index, array) {
+    if (val > acc) return val;
+    return acc;
+}
+```
+
+## See Also
+
+- [JSON Functions](/scripting/advanced/json) - Serialize arrays to JSON
+- [Core Functions](/scripting/core) - Built-in array operations

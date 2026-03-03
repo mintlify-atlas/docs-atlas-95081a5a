@@ -1,0 +1,1115 @@
+---
+title: Plugin API Reference
+description: Complete reference for all plugin API functions and types
+---
+
+## Overview
+
+This reference documents all functions available in the CoD4 Unleashed Server Plugin API. All functions are exported from the server and can be called from within your plugin.
+
+<Note>
+Header files are located in `plugins/function_declarations.h` and `plugins/declarations.h`.
+</Note>
+
+## Command Functions
+
+Handle server commands and arguments.
+
+### Plugin_Cmd_Argc
+
+```c
+int Plugin_Cmd_Argc()
+```
+
+Get the number of command arguments.
+
+**Returns:** Number of arguments (including command name)
+
+**Example:**
+```c
+void MyCommand_f(void) {
+    int argc = Plugin_Cmd_Argc();
+    Com_Printf("Command has %d arguments\n", argc);
+}
+```
+
+### Plugin_Cmd_Argv
+
+```c
+char* Plugin_Cmd_Argv(int arg)
+```
+
+Get a command argument by index.
+
+<ParamField path="arg" type="int" required>
+  Argument index (0 = command name, 1 = first argument, etc.)
+</ParamField>
+
+**Returns:** Argument string
+
+**Example:**
+```c
+void MyCommand_f(void) {
+    char *cmd = Plugin_Cmd_Argv(0);   // Command name
+    char *arg1 = Plugin_Cmd_Argv(1);  // First argument
+    Com_Printf("%s called with: %s\n", cmd, arg1);
+}
+```
+
+### Plugin_Cmd_Args
+
+```c
+char* Plugin_Cmd_Args(char* buff, int bufsize)
+```
+
+Get all command arguments as a single string.
+
+<ParamField path="buff" type="char*" required>
+  Buffer to store the arguments
+</ParamField>
+
+<ParamField path="bufsize" type="int" required>
+  Size of the buffer
+</ParamField>
+
+**Returns:** Buffer containing all arguments
+
+### Plugin_Cmd_GetInvokerSlot
+
+```c
+int Plugin_Cmd_GetInvokerSlot()
+```
+
+Get the client slot number of the player who invoked the command.
+
+**Returns:** Client slot number, or -1 if invoked from server console
+
+**Example:**
+```c
+void TeleportCommand_f(void) {
+    int slot = Plugin_Cmd_GetInvokerSlot();
+    if (slot < 0) {
+        Com_Printf("Must be used by a player\n");
+        return;
+    }
+    // Teleport the player...
+}
+```
+
+### Plugin_Cmd_GetInvokerUid
+
+```c
+int Plugin_Cmd_GetInvokerUid()
+```
+
+Get the UID of the player who invoked the command.
+
+**Returns:** Player UID
+
+## Console Output
+
+Print messages to the server console, logs, and player chat.
+
+### Plugin_Printf
+
+```c
+void Plugin_Printf(const char *fmt, ...)
+```
+
+Print a message to the console and logs. Works like `printf()`.
+
+**Example:**
+```c
+Plugin_Printf("Player %s connected\n", playerName);
+```
+
+### Plugin_PrintWarning
+
+```c
+void Plugin_PrintWarning(const char *fmt, ...)
+```
+
+Print a warning message.
+
+### Plugin_PrintError
+
+```c
+void Plugin_PrintError(const char *fmt, ...)
+```
+
+Print an error message.
+
+### Plugin_DPrintf
+
+```c
+void Plugin_DPrintf(const char *fmt, ...)
+```
+
+Print a debug message (only shown when `developer` cvar is 1).
+
+**Example:**
+```c
+Plugin_DPrintf("Debug: processing player %d\n", clientNum);
+```
+
+### Plugin_G_LogPrintf
+
+```c
+void Plugin_G_LogPrintf(const char *fmt, ...)
+```
+
+Write to the game log file.
+
+### Plugin_ChatPrintf
+
+```c
+void Plugin_ChatPrintf(int slot, const char *fmt, ...)
+```
+
+Send a chat message to a player (or all players).
+
+<ParamField path="slot" type="int" required>
+  Client slot number, or -1 to send to all players
+</ParamField>
+
+<ParamField path="fmt" type="const char*" required>
+  Format string (supports color codes)
+</ParamField>
+
+**Example:**
+```c
+// Message to one player
+Plugin_ChatPrintf(slot, "^2Welcome, %s!", playerName);
+
+// Message to all players
+Plugin_ChatPrintf(-1, "^1Server restart in 60 seconds!");
+```
+
+### Plugin_BoldPrintf
+
+```c
+void Plugin_BoldPrintf(int slot, const char *fmt, ...)
+```
+
+Display a bold message on player's screen.
+
+<ParamField path="slot" type="int" required>
+  Client slot number, or -1 for all players
+</ParamField>
+
+**Example:**
+```c
+Plugin_BoldPrintf(slot, "^1HEADSHOT!");
+```
+
+## Player Management
+
+Functions for working with players.
+
+### Plugin_GetSlotCount
+
+```c
+int Plugin_GetSlotCount()
+```
+
+Get the maximum number of player slots on the server.
+
+**Returns:** Value of `sv_maxclients`
+
+### Plugin_GetPlayerName
+
+```c
+char* Plugin_GetPlayerName(int slot)
+```
+
+Get a player's name.
+
+<ParamField path="slot" type="int" required>
+  Client slot number
+</ParamField>
+
+**Returns:** Player name (max 64 characters)
+
+### Plugin_GetPlayerUid
+
+```c
+int Plugin_GetPlayerUid(int slot)
+```
+
+Get a player's UID (unique identifier).
+
+**Returns:** Player UID, or 0 if not authenticated
+
+### Plugin_GetPlayerUID
+
+```c
+unsigned int Plugin_GetPlayerUID(unsigned int clientslot)
+```
+
+Get player's UID (alternative function).
+
+### Plugin_SetPlayerUID
+
+```c
+void Plugin_SetPlayerUID(unsigned int clientslot, unsigned int uid)
+```
+
+Set a player's UID.
+
+<Warning>
+Only use this if you're implementing custom authentication.
+</Warning>
+
+### Plugin_GetPlayerGUID
+
+```c
+const char* Plugin_GetPlayerGUID(unsigned int clientslot)
+```
+
+Get player's GUID (PunkBuster identifier).
+
+**Returns:** 32-character GUID string
+
+### Plugin_SetPlayerGUID
+
+```c
+void Plugin_SetPlayerGUID(unsigned int clientslot, const char* guid)
+```
+
+Set a player's GUID.
+
+### Plugin_GetClientScoreboard
+
+```c
+clientScoreboard_t Plugin_GetClientScoreboard(int clientNum)
+```
+
+Get a player's scoreboard statistics.
+
+**Returns:** Structure containing:
+- `int score` - Total score
+- `int deaths` - Death count
+- `int kills` - Kill count  
+- `int assists` - Assist count
+
+**Example:**
+```c
+clientScoreboard_t stats = Plugin_GetClientScoreboard(clientNum);
+Plugin_ChatPrintf(clientNum, "K/D: %d/%d", stats.kills, stats.deaths);
+```
+
+### Plugin_DropClient
+
+```c
+void Plugin_DropClient(unsigned int clientnum, const char *reason)
+```
+
+Kick a player from the server.
+
+<ParamField path="clientnum" type="unsigned int" required>
+  Client slot number
+</ParamField>
+
+<ParamField path="reason" type="const char*" required>
+  Kick reason (shown to player)
+</ParamField>
+
+**Example:**
+```c
+Plugin_DropClient(slot, "Excessive teamkilling");
+```
+
+### Plugin_BanClient
+
+```c
+void Plugin_BanClient(unsigned int clientnum, int duration, 
+                      int invokerid, char *banreason)
+```
+
+Ban a player from the server.
+
+<ParamField path="clientnum" type="unsigned int" required>
+  Client slot number
+</ParamField>
+
+<ParamField path="duration" type="int" required>
+  Ban duration in minutes, or -1 for permanent ban
+</ParamField>
+
+<ParamField path="invokerid" type="int" required>
+  UID of the admin issuing the ban (0 for console)
+</ParamField>
+
+<ParamField path="banreason" type="char*">
+  Ban reason (can be NULL)
+</ParamField>
+
+**Example:**
+```c
+// Ban for 60 minutes
+Plugin_BanClient(slot, 60, adminUID, "Cheating");
+
+// Permanent ban
+Plugin_BanClient(slot, -1, 0, "Repeated offenses");
+```
+
+## Memory Management
+
+<Warning>
+Always use these functions instead of standard `malloc()`/`free()`.
+</Warning>
+
+### Plugin_Malloc
+
+```c
+void* Plugin_Malloc(size_t size)
+```
+
+Allocate memory for the plugin.
+
+<ParamField path="size" type="size_t" required>
+  Number of bytes to allocate
+</ParamField>
+
+**Returns:** Pointer to allocated memory, or NULL on failure
+
+**Example:**
+```c
+PlayerData_t *data = (PlayerData_t*)Plugin_Malloc(sizeof(PlayerData_t) * 64);
+if (data == NULL) {
+    Plugin_Error(P_ERROR_DISABLE, "Out of memory");
+    return -1;
+}
+```
+
+### Plugin_Free
+
+```c
+void Plugin_Free(void *ptr)
+```
+
+Free previously allocated memory.
+
+<ParamField path="ptr" type="void*" required>
+  Pointer to memory to free
+</ParamField>
+
+**Example:**
+```c
+Plugin_Free(data);
+data = NULL;
+```
+
+<Note>
+Safe to call multiple times on the same pointer. Safe to call on NULL pointers.
+</Note>
+
+## Console Variables (CVars)
+
+### Registering CVars
+
+#### Plugin_Cvar_RegisterString
+
+```c
+CONVAR_T* Plugin_Cvar_RegisterString(const char *var_name, 
+                                      const char *var_value,
+                                      int flags, 
+                                      const char *var_description)
+```
+
+Register a string console variable.
+
+**Example:**
+```c
+cvar_t *my_name = Plugin_Cvar_RegisterString(
+    "myplugin_name",
+    "Default Name",
+    CVAR_ARCHIVE,
+    "Player name setting"
+);
+```
+
+#### Plugin_Cvar_RegisterBool
+
+```c
+CONVAR_T* Plugin_Cvar_RegisterBool(const char *var_name, 
+                                    qboolean var_value,
+                                    int flags, 
+                                    const char *var_description)
+```
+
+Register a boolean console variable.
+
+**Example:**
+```c
+cvar_t *enabled = Plugin_Cvar_RegisterBool(
+    "myplugin_enabled",
+    qtrue,
+    CVAR_ARCHIVE,
+    "Enable plugin features"
+);
+```
+
+#### Plugin_Cvar_RegisterInt
+
+```c
+CONVAR_T* Plugin_Cvar_RegisterInt(const char *var_name, 
+                                   int var_value,
+                                   int min_value, 
+                                   int max_value,
+                                   int flags, 
+                                   const char *var_description)
+```
+
+Register an integer console variable with min/max bounds.
+
+**Example:**
+```c
+cvar_t *max_players = Plugin_Cvar_RegisterInt(
+    "myplugin_maxplayers",
+    32,     // Default
+    1,      // Min
+    64,     // Max
+    CVAR_ARCHIVE,
+    "Maximum players allowed"
+);
+```
+
+#### Plugin_Cvar_RegisterFloat
+
+```c
+CONVAR_T* Plugin_Cvar_RegisterFloat(const char *var_name, 
+                                     float var_value,
+                                     float min_value, 
+                                     float max_value,
+                                     int flags, 
+                                     const char *var_description)
+```
+
+Register a floating-point console variable.
+
+**Example:**
+```c
+cvar_t *multiplier = Plugin_Cvar_RegisterFloat(
+    "myplugin_multiplier",
+    1.5,    // Default
+    0.0,    // Min
+    10.0,   // Max
+    CVAR_ARCHIVE,
+    "Damage multiplier"
+);
+```
+
+### Reading CVars
+
+#### Plugin_Cvar_GetInteger
+
+```c
+int Plugin_Cvar_GetInteger(CONVAR_T const *var)
+```
+
+Get integer value from a cvar.
+
+#### Plugin_Cvar_GetBoolean
+
+```c
+qboolean Plugin_Cvar_GetBoolean(CONVAR_T const *var)
+```
+
+Get boolean value from a cvar.
+
+#### Plugin_Cvar_GetValue
+
+```c
+float Plugin_Cvar_GetValue(CONVAR_T const *var)
+```
+
+Get float value from a cvar.
+
+#### Plugin_Cvar_GetString
+
+```c
+const char* Plugin_Cvar_GetString(CONVAR_T const *var)
+```
+
+Get string value from a cvar.
+
+**Example:**
+```c
+if (Plugin_Cvar_GetBoolean(enabled)) {
+    int max = Plugin_Cvar_GetInteger(max_players);
+    float mult = Plugin_Cvar_GetValue(multiplier);
+    const char *name = Plugin_Cvar_GetString(my_name);
+    
+    Com_Printf("Enabled: %d players, %fx, name=%s\n", max, mult, name);
+}
+```
+
+### Setting CVars
+
+#### Plugin_Cvar_SetInt
+
+```c
+void Plugin_Cvar_SetInt(CONVAR_T const* var, int val)
+```
+
+#### Plugin_Cvar_SetBool
+
+```c
+void Plugin_Cvar_SetBool(CONVAR_T const* var, qboolean val)
+```
+
+#### Plugin_Cvar_SetFloat
+
+```c
+void Plugin_Cvar_SetFloat(CONVAR_T const* var, float val)
+```
+
+#### Plugin_Cvar_SetString
+
+```c
+void Plugin_Cvar_SetString(CONVAR_T const* var, char const* string)
+```
+
+### Accessing CVars by Name
+
+#### Plugin_Cvar_VariableIntegerValue
+
+```c
+int Plugin_Cvar_VariableIntegerValue(const char *var_name)
+```
+
+Get cvar integer value by name.
+
+#### Plugin_Cvar_VariableString
+
+```c
+const char* Plugin_Cvar_VariableString(const char *var_name)
+```
+
+Get cvar string value by name.
+
+#### Plugin_Cvar_Set
+
+```c
+void Plugin_Cvar_Set(const char *var_name, const char* value)
+```
+
+Set cvar value by name.
+
+**Example:**
+```c
+Plugin_Cvar_Set("sv_hostname", "My Custom Server");
+```
+
+## File Operations
+
+### Plugin_FS_SV_WriteFile
+
+```c
+int Plugin_FS_SV_WriteFile(const char *qpath, const void *buffer, int size)
+```
+
+Write data to a file (creates or overwrites).
+
+<ParamField path="qpath" type="const char*" required>
+  File path relative to server directory
+</ParamField>
+
+<ParamField path="buffer" type="const void*" required>
+  Data to write
+</ParamField>
+
+<ParamField path="size" type="int" required>
+  Number of bytes to write
+</ParamField>
+
+**Returns:** Number of bytes written
+
+**Example:**
+```c
+char data[] = "Player statistics\n";
+int written = Plugin_FS_SV_WriteFile("stats/data.txt", data, strlen(data));
+if (written != strlen(data)) {
+    Com_PrintError("Failed to write file\n");
+}
+```
+
+### Plugin_FS_SV_FOpenFileRead
+
+```c
+int Plugin_FS_SV_FOpenFileRead(const char *filename, fileHandle_t *fp)
+```
+
+Open a file for reading.
+
+**Returns:** File size in bytes, or negative value on error
+
+### Plugin_FS_SV_FOpenFileWrite
+
+```c
+fileHandle_t Plugin_FS_SV_FOpenFileWrite(const char *filename)
+```
+
+Open a file for writing.
+
+**Returns:** File handle
+
+### Plugin_FS_Read
+
+```c
+int Plugin_FS_Read(void *buffer, int len, fileHandle_t f)
+```
+
+Read data from an open file.
+
+**Returns:** Number of bytes read
+
+### Plugin_FS_Write
+
+```c
+int Plugin_FS_Write(const void *buffer, int len, fileHandle_t h)
+```
+
+Write data to an open file.
+
+**Returns:** Number of bytes written
+
+### Plugin_FS_FCloseFile
+
+```c
+qboolean Plugin_FS_FCloseFile(fileHandle_t f)
+```
+
+Close an open file.
+
+**Example:**
+```c
+fileHandle_t file;
+char buffer[1024];
+
+int len = Plugin_FS_SV_FOpenFileRead("config.txt", &file);
+if (len > 0) {
+    Plugin_FS_Read(buffer, sizeof(buffer), file);
+    Plugin_FS_FCloseFile(file);
+    Com_Printf("Read: %s\n", buffer);
+}
+```
+
+## Networking
+
+### TCP Functions
+
+#### Plugin_TcpConnect
+
+```c
+qboolean Plugin_TcpConnect(int connection, const char* remote)
+```
+
+Open a TCP connection.
+
+<ParamField path="connection" type="int" required>
+  Connection slot (0-3)
+</ParamField>
+
+<ParamField path="remote" type="const char*" required>
+  Remote address (hostname:port or IP:port)
+</ParamField>
+
+**Returns:** `qtrue` on success, `qfalse` on failure
+
+**Example:**
+```c
+if (Plugin_TcpConnect(0, "api.example.com:8080")) {
+    Com_Printf("Connected!\n");
+}
+```
+
+#### Plugin_TcpSendData
+
+```c
+qboolean Plugin_TcpSendData(int connection, void *data, int len)
+```
+
+Send data over TCP connection.
+
+**Returns:** `qtrue` on success
+
+#### Plugin_TcpGetData
+
+```c
+int Plugin_TcpGetData(int connection, void *buf, int size)
+```
+
+Receive data from TCP connection.
+
+**Returns:**
+- `-1` - Connection closed
+- `0` - No data available
+- `>0` - Number of bytes received
+
+#### Plugin_TcpCloseConnection
+
+```c
+void Plugin_TcpCloseConnection(int connection)
+```
+
+Close a TCP connection.
+
+### UDP Functions
+
+#### Plugin_UdpSendData
+
+```c
+qboolean Plugin_UdpSendData(netadr_t* to, void* data, int len)
+```
+
+Send a UDP packet.
+
+#### Plugin_NET_StringToAdr
+
+```c
+int Plugin_NET_StringToAdr(const char* string, netadr_t*, netadrtype_t)
+```
+
+Convert string to network address.
+
+**Example:**
+```c
+netadr_t addr;
+Plugin_NET_StringToAdr("192.168.1.1:28960", &addr, NA_IP);
+```
+
+#### Plugin_NET_AdrToString
+
+```c
+const char* Plugin_NET_AdrToString(netadr_t *a)
+```
+
+Convert network address to string.
+
+## Script Functions
+
+Extend GSC (Game Script Code) with custom functions.
+
+### Plugin_ScrAddFunction
+
+```c
+void Plugin_ScrAddFunction(char *name, xfunction_t function)
+```
+
+Register a GSC function.
+
+**Example:**
+```c
+void GScr_MyFunction() {
+    int arg = Plugin_Scr_GetInt(0);
+    Plugin_Scr_AddInt(arg * 2);
+}
+
+PCL int OnInit() {
+    Plugin_ScrAddFunction("myfunction", GScr_MyFunction);
+    return 0;
+}
+```
+
+### Plugin_ScrAddMethod
+
+```c
+void Plugin_ScrAddMethod(char *name, xfunction_t function)
+```
+
+Register a GSC method (called on entities).
+
+### Plugin_Scr_GetNumParam
+
+```c
+int Plugin_Scr_GetNumParam(void)
+```
+
+Get number of parameters passed from GSC.
+
+### Plugin_Scr_GetInt
+
+```c
+int Plugin_Scr_GetInt(unsigned int paramIndex)
+```
+
+Get integer parameter from GSC.
+
+### Plugin_Scr_GetFloat
+
+```c
+float Plugin_Scr_GetFloat(unsigned int paramIndex)
+```
+
+Get float parameter from GSC.
+
+### Plugin_Scr_GetString
+
+```c
+char* Plugin_Scr_GetString(unsigned int paramIndex)
+```
+
+Get string parameter from GSC.
+
+### Plugin_Scr_GetEntity
+
+```c
+gentity_t* Plugin_Scr_GetEntity(unsigned int paramIndex)
+```
+
+Get entity parameter from GSC.
+
+### Plugin_Scr_GetVector
+
+```c
+void Plugin_Scr_GetVector(unsigned int paramIndex, vec3_t* out)
+```
+
+Get vector parameter from GSC.
+
+### Plugin_Scr_AddInt
+
+```c
+void Plugin_Scr_AddInt(int value)
+```
+
+Return integer value to GSC.
+
+### Plugin_Scr_AddFloat
+
+```c
+void Plugin_Scr_AddFloat(float value)
+```
+
+Return float value to GSC.
+
+### Plugin_Scr_AddString
+
+```c
+void Plugin_Scr_AddString(const char *string)
+```
+
+Return string value to GSC.
+
+### Plugin_Scr_AddBool
+
+```c
+void Plugin_Scr_AddBool(qboolean value)
+```
+
+Return boolean value to GSC.
+
+### Plugin_Scr_Error
+
+```c
+void Plugin_Scr_Error(const char *string)
+```
+
+Throw an error in GSC.
+
+## Game Entities
+
+### Plugin_GetGentityForEntityNum
+
+```c
+gentity_t* Plugin_GetGentityForEntityNum(int entnum)
+```
+
+Get game entity by entity number.
+
+### Plugin_GetClientForClientNum
+
+```c
+client_t* Plugin_GetClientForClientNum(int clientnum)
+```
+
+Get client structure by client number.
+
+**Example:**
+```c
+client_t *client = Plugin_GetClientForClientNum(clientNum);
+Com_Printf("Ping: %d\n", client->ping);
+```
+
+### Plugin_SV_GameClientNum
+
+```c
+playerState_t* Plugin_SV_GameClientNum(int num)
+```
+
+Get player state by client number.
+
+## Time Functions
+
+### Plugin_GetLevelTime
+
+```c
+int Plugin_GetLevelTime(void)
+```
+
+Get current level time in milliseconds.
+
+### Plugin_GetServerTime
+
+```c
+int Plugin_GetServerTime(void)
+```
+
+Get server time in milliseconds.
+
+### Plugin_Milliseconds
+
+```c
+int Plugin_Milliseconds()
+```
+
+Get milliseconds since server start.
+
+## Utility Functions
+
+### Plugin_IsSvRunning
+
+```c
+qboolean Plugin_IsSvRunning()
+```
+
+Check if server is running.
+
+### Plugin_Error
+
+```c
+void Plugin_Error(int code, const char *fmt, ...)
+```
+
+Report a plugin error.
+
+<ParamField path="code" type="int" required>
+  Error code: `P_ERROR_DISABLE` or `P_ERROR_TERMINATE`
+</ParamField>
+
+**Example:**
+```c
+if (critical_failure) {
+    Plugin_Error(P_ERROR_DISABLE, "Critical failure in plugin");
+}
+```
+
+### Plugin_AddCommand
+
+```c
+void Plugin_AddCommand(char *name, xcommand_t command, int defaultpower)
+```
+
+Register a server command.
+
+<ParamField path="name" type="char*" required>
+  Command name
+</ParamField>
+
+<ParamField path="command" type="xcommand_t" required>
+  Function to call when command is executed
+</ParamField>
+
+<ParamField path="defaultpower" type="int" required>
+  Required power level (0-100)
+</ParamField>
+
+## Data Types
+
+### pluginInfo_t
+
+```c
+typedef struct {
+    struct {
+        int major;
+        int minor;
+    } handlerVersion;
+    
+    struct {
+        int major;
+        int minor;
+    } pluginVersion;
+    
+    char fullName[256];
+    char shortDescription[256];
+    char longDescription[1024];
+} pluginInfo_t;
+```
+
+### clientScoreboard_t
+
+```c
+typedef struct {
+    int score;
+    int deaths;
+    int kills;
+    int assists;
+} clientScoreboard_t;
+```
+
+### netadr_t
+
+```c
+typedef struct {
+    netadrtype_t type;
+    int scope_id;
+    unsigned short port;
+    int sock;
+    union {
+        byte ip[4];
+        byte ip6[16];
+    };
+} netadr_t;
+```
+
+## Constants
+
+### Plugin Handler Version
+
+```c
+PLUGIN_HANDLER_VERSION_MAJOR  // Major version
+PLUGIN_HANDLER_VERSION_MINOR  // Minor version
+```
+
+### Error Codes
+
+```c
+P_ERROR_DISABLE     // Disable the plugin
+P_ERROR_TERMINATE   // Terminate the server
+```
+
+### Boolean Values
+
+```c
+qtrue   // True
+qfalse  // False
+```
+
+### Cvar Flags
+
+```c
+CVAR_ARCHIVE        // Save to config
+CVAR_USERINFO       // Send on connect
+CVAR_SERVERINFO     // Sent to clients
+CVAR_SYSTEMINFO     // Duplicated on clients
+CVAR_INIT           // Command line only
+CVAR_LATCH          // Changes on restart
+CVAR_ROM            // Read-only
+CVAR_CHEAT          // Requires cheats
+CVAR_TEMP           // Not archived
+CVAR_NORESTART      // Not cleared on restart
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Guide" icon="code" href="/plugins/development">
+    Learn how to use these APIs in practice
+  </Card>
+  
+  <Card title="Example Plugins" icon="lightbulb" href="/plugins/examples">
+    See real-world usage examples
+  </Card>
+</CardGroup>

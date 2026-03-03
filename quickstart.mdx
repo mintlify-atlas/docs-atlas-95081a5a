@@ -1,80 +1,431 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get your CoD4 Unleashed Server up and running in minutes
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before starting, ensure you have:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Compiled Server" icon="check">
+    Follow the [Installation Guide](/installation) to compile the server binary
+  </Card>
+  <Card title="CoD4 Game Files" icon="folder">
+    Original Call of Duty 4 dedicated server files (main, zone, usermaps folders)
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  You need the original CoD4 dedicated server files. CoD4 Unleashed replaces the server executable but requires the game data files.
 </Note>
+
+## Quick Setup
+
+<Steps>
+  <Step title="Prepare Server Directory">
+    Create or navigate to your CoD4 dedicated server directory:
+
+    ```bash
+    mkdir -p ~/cod4-server
+    cd ~/cod4-server
+    ```
+
+    Your directory should contain:
+    - `main/` - Game assets and IWD files
+    - `zone/` - Zone files
+    - `usermaps/` - Custom maps (optional)
+    - Server configuration files
+  </Step>
+
+  <Step title="Copy CoD4 Unleashed Binary">
+    Copy the compiled binary to your server directory:
+
+    <CodeGroup>
+    ```bash Linux
+    cp /path/to/source/bin/cod4u_lnx ~/cod4-server/
+    chmod +x ~/cod4-server/cod4u_lnx
+    ```
+
+    ```cmd Windows
+    copy C:\path\to\source\bin\cod4u_win32.exe C:\cod4-server\
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create Server Configuration">
+    Create a `server.cfg` file in the `main` directory:
+
+    ```bash
+    mkdir -p main
+    nano main/server.cfg
+    ```
+
+    Add basic server configuration:
+
+    ```ini
+    // Server Settings
+    set sv_hostname "CoD4 Unleashed Server"
+    set sv_maxclients 32
+    set g_password ""
+    set rcon_password "your_secure_password"
+
+    // Game Settings
+    set g_gametype "dm"  // dm, tdm, sd, sab, koth, etc.
+    set sv_maprotation "gametype dm map mp_strike map mp_crash map mp_backlot"
+
+    // Network Settings
+    set net_port 28960
+    set sv_fps 20
+
+    // Logging
+    set g_logsync 1
+    set logfile 1
+    set g_log "games_mp.log"
+
+    // Server Rules
+    set sv_pure 1
+    set sv_punkbuster 0
+    ```
+
+    <Warning>
+      Change `rcon_password` to a strong, unique password. This provides administrative access to your server.
+    </Warning>
+  </Step>
+
+  <Step title="Launch the Server">
+    Start your CoD4 Unleashed server:
+
+    <CodeGroup>
+    ```bash Linux
+    ./cod4u_lnx +set dedicated 2 +set net_ip 0.0.0.0 +set net_port 28960 +exec server.cfg +map_rotate
+    ```
+
+    ```cmd Windows
+    cod4u_win32.exe +set dedicated 2 +set net_ip 0.0.0.0 +set net_port 28960 +exec server.cfg +map_rotate
+    ```
+
+    ```bash Linux (Background)
+    nohup ./cod4u_lnx +set dedicated 2 +set net_ip 0.0.0.0 +set net_port 28960 +exec server.cfg +map_rotate > server.log 2>&1 &
+    ```
+    </CodeGroup>
+
+    <Accordion title="Command Line Arguments Explained">
+      - `+set dedicated 2` - Run as dedicated server (2 = internet server, 1 = LAN server)
+      - `+set net_ip 0.0.0.0` - Bind to all network interfaces
+      - `+set net_port 28960` - Set server port (default CoD4 port)
+      - `+exec server.cfg` - Execute configuration file
+      - `+map_rotate` - Start map rotation
+    </Accordion>
+  </Step>
+
+  <Step title="Verify Server is Running">
+    Check that your server is accessible:
+
+    <Tabs>
+      <Tab title="Check Process">
+        ```bash
+        ps aux | grep cod4u
+        ```
+      </Tab>
+
+      <Tab title="Check Port">
+        ```bash
+        netstat -tulpn | grep 28960
+        ```
+
+        Or use `ss` on modern Linux:
+        ```bash
+        ss -tulpn | grep 28960
+        ```
+      </Tab>
+
+      <Tab title="Check Logs">
+        ```bash
+        tail -f main/games_mp.log
+        ```
+      </Tab>
+    </Tabs>
+
+    Expected output should show the server listening on port 28960.
+  </Step>
+</Steps>
+
+## Using Unleashed Features
+
+### JSON Module
+
+CoD4 Unleashed includes a powerful JSON module for GSC scripting:
+
+```gsc
+#include unleashed\json;
+
+init()
+{
+    level thread testJSON();
+}
+
+testJSON()
+{
+    // Parse JSON string
+    jsonString = "{\"name\":\"Player1\",\"score\":100}";
+    data = json_parse(jsonString);
+    
+    // Access values
+    playerName = data["name"];
+    playerScore = data["score"];
+    
+    iPrintLnBold("Player: " + playerName + " - Score: " + playerScore);
+}
+```
+
+<Note>
+  The JSON module files are located in `bin/main/unleashed/json`
+</Note>
+
+### HTTP/HTTPS Requests
+
+Make web requests directly from GSC:
+
+```gsc
+onPlayerConnect()
+{
+    player thread authenticatePlayer();
+}
+
+authenticatePlayer()
+{
+    self endon("disconnect");
+    
+    // HTTPS request example
+    guid = self getGuid();
+    url = "https://api.yourserver.com/auth?guid=" + guid;
+    
+    response = httpGet(url);
+    
+    if(isDefined(response) && response != "")
+    {
+        // Process authentication response
+        data = json_parse(response);
+        // ... handle authentication
+    }
+}
+```
+
+### Performance Monitoring
+
+Monitor server performance with enhanced FPS functions:
+
+```gsc
+monitorPerformance()
+{
+    level endon("game_ended");
+    
+    while(true)
+    {
+        fps = getCountedFps();  // Accurate FPS with lag spike detection
+        
+        if(isLagging())
+        {
+            logPrint("WARNING: Server is lagging! FPS: " + fps);
+            // Take action to reduce load
+        }
+        
+        wait 5;
+    }
+}
+```
+
+### Protocol Detection
+
+Detect player protocol versions:
+
+```gsc
+onPlayerConnect()
+{
+    protocol = self getProtocol();
+    
+    if(protocol == 6)  // CoD4 1.7
+        iPrintLn(self.name + " connected using CoD4 1.7");
+    else if(protocol == 7)  // CoD4 1.8 (Steam)
+        iPrintLn(self.name + " connected using CoD4 1.8 (Steam)");
+}
+```
+
+## Advanced Configuration
+
+### Running as System Service (Linux)
+
+Create a systemd service for automatic startup:
+
+<Steps>
+  <Step title="Create Service File">
+    ```bash
+    sudo nano /etc/systemd/system/cod4-unleashed.service
+    ```
+
+    Add the following:
+
+    ```ini
+    [Unit]
+    Description=CoD4 Unleashed Dedicated Server
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=cod4server
+    WorkingDirectory=/home/cod4server/cod4-server
+    ExecStart=/home/cod4server/cod4-server/cod4u_lnx +set dedicated 2 +set net_ip 0.0.0.0 +set net_port 28960 +exec server.cfg +map_rotate
+    Restart=on-failure
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Enable and Start Service">
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable cod4-unleashed
+    sudo systemctl start cod4-unleashed
+    ```
+  </Step>
+
+  <Step title="Check Service Status">
+    ```bash
+    sudo systemctl status cod4-unleashed
+    ```
+  </Step>
+</Steps>
+
+### Firewall Configuration
+
+Ensure your firewall allows CoD4 traffic:
+
+<CodeGroup>
+```bash UFW (Ubuntu)
+sudo ufw allow 28960/udp comment 'CoD4 Unleashed Server'
+sudo ufw reload
+```
+
+```bash firewalld (CentOS/RHEL)
+sudo firewall-cmd --permanent --add-port=28960/udp
+sudo firewall-cmd --reload
+```
+
+```bash iptables
+sudo iptables -A INPUT -p udp --dport 28960 -j ACCEPT
+sudo iptables-save > /etc/iptables/rules.v4
+```
+</CodeGroup>
+
+### Custom Mods and Scripts
+
+Place your custom GSC scripts in the appropriate location:
+
+```bash
+main/
+├── maps/
+│   └── mp/
+│       ├── gametypes/
+│       │   └── _yourgametype.gsc
+│       └── _yourmapscript.gsc
+├── unleashed/
+│   └── json/  # JSON module
+└── server.cfg
+```
+
+## Testing Your Server
+
+<Steps>
+  <Step title="Connect from Game Client">
+    Launch Call of Duty 4 and open the console (~):
+
+    ```
+    /connect your_server_ip:28960
+    ```
+  </Step>
+
+  <Step title="Test RCON Access">
+    In-game console:
+
+    ```
+    /rcon login your_secure_password
+    /rcon status
+    ```
+  </Step>
+
+  <Step title="Monitor Server Logs">
+    ```bash
+    tail -f main/games_mp.log
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Server won't start - 'cannot open main/iw_14.iwd'">
+    **Problem**: Missing CoD4 game files.
+
+    **Solution**: Ensure all original CoD4 dedicated server files are present, especially:
+    - `main/iw_*.iwd` files (IWD 00-14)
+    - `zone/` directory with zone files
+  </Accordion>
+
+  <Accordion title="Server not visible on internet">
+    **Problem**: Firewall or port forwarding not configured.
+
+    **Solution**:
+    1. Open UDP port 28960 in your firewall
+    2. Forward port 28960 UDP in your router to your server
+    3. Set `+set net_ip 0.0.0.0` in startup command
+  </Accordion>
+
+  <Accordion title="Players getting kicked - 'Server is full'">
+    **Problem**: `sv_maxclients` set too low or `sv_privateClients` misconfigured.
+
+    **Solution**: In `server.cfg`:
+    ```ini
+    set sv_maxclients 32  // Increase as needed
+    set sv_privateClients 0
+    ```
+  </Accordion>
+
+  <Accordion title="JSON functions not working">
+    **Problem**: JSON module not loaded.
+
+    **Solution**: Include the JSON module in your GSC:
+    ```gsc
+    #include unleashed\\json;
+    ```
+    Ensure `bin/main/unleashed/json` files are present.
+  </Accordion>
+
+  <Accordion title="Linux: Error opening libcurl.so.4">
+    **Problem**: libcurl shared library not found.
+
+    **Solution**:
+    ```bash
+    sudo apt-get install libcurl4:i386
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scripting API" icon="code" href="https://docs.raid-gaming.net/">
+    Explore the complete GSC scripting API documentation
+  </Card>
+  <Card title="Configuration Reference" icon="gear" href="/concepts/configuration">
+    Deep dive into server configuration options
+  </Card>
+  <Card title="Plugin Development" icon="puzzle-piece" href="/plugins/overview">
+    Learn how to create custom plugins for CoD4 Unleashed
+  </Card>
+  <Card title="Community Forum" icon="users" href="https://raid-gaming.net/forum/18-call-of-duty-4-unleashed/">
+    Get help and share your server setup
+  </Card>
+</CardGroup>

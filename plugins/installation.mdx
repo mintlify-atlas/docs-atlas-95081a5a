@@ -1,0 +1,283 @@
+---
+title: Installing Plugins
+description: Learn how to install and manage plugins on your CoD4 Unleashed Server
+---
+
+## Prerequisites
+
+Before installing plugins, ensure:
+
+- CoD4 Unleashed Server is installed and running
+- You have access to the server's `plugins/` directory
+- The plugin file is compatible with your server version
+
+<Note>
+Plugin files are shared libraries with the extension `.so` on Linux systems.
+</Note>
+
+## Installation Steps
+
+Installing a plugin is a simple 2-step process:
+
+<Steps>
+  <Step title="Copy Plugin File">
+    Copy the plugin's `.so` file to the `plugins/` directory:
+    
+    ```bash
+    cp myplugin.so /path/to/server/plugins/
+    ```
+    
+    Ensure the plugin file has correct permissions:
+    
+    ```bash
+    chmod 755 plugins/myplugin.so
+    ```
+  </Step>
+  
+  <Step title="Load the Plugin">
+    Load the plugin using the server console or RCON:
+    
+    ```bash
+    loadPlugin myplugin
+    ```
+    
+    <Note>
+    Use the filename **without** the `.so` extension.
+    </Note>
+    
+    You should see confirmation output:
+    
+    ```
+    Plugin's OnInit executed successfully!
+    Plugin myplugin loaded successfully. Server is currently running 1 plugins.
+    ```
+  </Step>
+</Steps>
+
+## Auto-Loading Plugins
+
+To automatically load plugins when the server starts, add the `loadPlugin` command to your server configuration file:
+
+```cfg server.cfg
+// Load plugins on server start
+loadPlugin antispam
+loadPlugin customcommands
+loadPlugin statistics
+```
+
+<Warning>
+Plugins are loaded in the order they appear in the config file. If one plugin depends on another, load the dependency first.
+</Warning>
+
+## Verifying Installation
+
+Check if your plugin loaded successfully:
+
+<CodeGroup>
+
+```bash List All Plugins
+plugins
+```
+
+```bash Plugin Information
+pluginInfo myplugin
+```
+
+</CodeGroup>
+
+### Expected Output
+
+```
+-------- Plugins List --------
+ ID | Name        | Version | Commands | Functions | Memory
+  0 | myplugin    | 1.0     | 3        | 0         | 4096 B
+  1 | antispam    | 1.0     | 0        | 0         | 2048 B
+-----------------------------
+2 plugins loaded
+```
+
+## Unloading Plugins
+
+To remove a plugin from memory:
+
+```bash
+unloadPlugin myplugin
+```
+
+<Warning>
+**Cannot unload these plugin types:**
+
+- **Library plugins** - Plugins that export functions to other plugins
+- **Script-library plugins** - Plugins that add GSC script functions or methods
+
+Attempting to unload these will result in an error:
+```
+PHandler_Unload: Cannot unload a library plugin!
+```
+or
+```
+PHandler_Unload: Cannot unload a script-library plugin!
+```
+
+This is a security measure to prevent server crashes from dangling function pointers.
+</Warning>
+
+## Troubleshooting
+
+### Plugin Won't Load
+
+<AccordionGroup>
+  <Accordion title="File not found">
+    **Error**: `No such file found: plugins/myplugin.so`
+    
+    **Solutions**:
+    - Verify the file exists in the `plugins/` directory
+    - Check the filename is correct (case-sensitive)
+    - Ensure you're using the filename without extension
+    
+    ```bash
+    # Check if file exists
+    ls -la plugins/myplugin.so
+    ```
+  </Accordion>
+  
+  <Accordion title="Permission denied">
+    **Error**: Plugin loads but immediately fails
+    
+    **Solutions**:
+    - Set correct file permissions:
+    
+    ```bash
+    chmod -R 755 plugins/
+    ```
+  </Accordion>
+  
+  <Accordion title="Version mismatch">
+    **Error**: `This plugin might not be compatible with this server version!`
+    
+    **Example output**:
+    ```
+    Requested plugin handler version: 2.1, server's plugin handler version: 2.0
+    Unloading the plugin...
+    ```
+    
+    **Solutions**:
+    - Update your server to the latest version
+    - Obtain a compatible version of the plugin
+    - Recompile the plugin for your server version
+  </Accordion>
+  
+  <Accordion title="Corrupt plugin file">
+    **Error**: `is not a plugin file or is corrupt or contains disallowed functions`
+    
+    **Solutions**:
+    - Re-download the plugin from a trusted source
+    - Verify file integrity (check MD5/SHA checksums)
+    - If you compiled it yourself, recompile with correct flags
+  </Accordion>
+  
+  <Accordion title="OnInit function failed">
+    **Error**: `Error in plugin's OnInit function!`
+    
+    **Solutions**:
+    - Check server console for additional error messages from the plugin
+    - Review plugin configuration (cvars, required files)
+    - Contact the plugin developer with error details
+  </Accordion>
+</AccordionGroup>
+
+## Secure Mode
+
+When running in secure mode, only plugins with verified checksums will load:
+
+```bash
+# If plugin fails in secure mode:
+Tiger = abc123def456...
+plugins/myplugin.so checksum mismatch!
+This plugin will not be loaded in securemode.
+```
+
+<Info>
+**Whitelisted plugins in secure mode:**
+- `censor.so` - Content filtering
+- `antispam.so` - Chat spam prevention  
+- `gameranger.so` - GameRanger integration
+
+These official plugins have hardcoded checksums and will load in secure mode.
+</Info>
+
+## Managing Plugin Configuration
+
+Many plugins use cvars (console variables) for configuration:
+
+```cfg server.cfg
+// Load the antispam plugin
+loadPlugin antispam
+
+// Configure antispam settings
+set antispam_maxMessagesPerMinute "8"
+set antispam_minAdminPower "50"
+set antispam_minMessageDelay "4"
+set antispam_renewedMessageDelay "0"
+```
+
+<Note>
+Plugin-specific cvars are typically prefixed with the plugin name (e.g., `antispam_*`, `stats_*`).
+</Note>
+
+### Finding Plugin Configuration
+
+Check plugin documentation or use:
+
+```bash
+# List all cvars (search for plugin-specific ones)
+cvarlist | grep antispam
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Test First" icon="flask">
+    Always test new plugins on a development server before deploying to production
+  </Card>
+  
+  <Card title="Keep Backups" icon="floppy-disk">
+    Backup your server before installing new plugins in case of conflicts
+  </Card>
+  
+  <Card title="Monitor Performance" icon="chart-line">
+    Watch server performance after loading plugins - check memory and CPU usage
+  </Card>
+  
+  <Card title="Update Regularly" icon="arrows-rotate">
+    Keep plugins updated to benefit from bug fixes and new features
+  </Card>
+</CardGroup>
+
+## Plugin Load Order
+
+If you have plugins that depend on each other:
+
+```cfg server.cfg
+// 1. Load library plugins first (they export functions)
+loadPlugin mylib
+
+// 2. Then load plugins that depend on libraries
+loadPlugin feature1
+loadPlugin feature2
+
+// 3. Finally load standalone plugins
+loadPlugin antispam
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Guide" icon="code" href="/plugins/development">
+    Learn how to create your own plugins
+  </Card>
+  
+  <Card title="Example Plugins" icon="lightbulb" href="/plugins/examples">
+    Study working plugin examples
+  </Card>
+</CardGroup>

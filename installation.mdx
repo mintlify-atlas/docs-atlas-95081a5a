@@ -1,0 +1,314 @@
+---
+title: Installation
+description: Complete guide to compiling CoD4 Unleashed Server on Linux and Windows
+---
+
+## Prerequisites
+
+Before compiling CoD4 Unleashed Server, ensure you have the required tools and libraries installed for your platform.
+
+### Required Tools
+
+<CardGroup cols={3}>
+  <Card title="Compiler" icon="gear">
+    GCC (Linux) or MinGW32 (Windows)
+  </Card>
+  <Card title="Assembler" icon="microchip">
+    NASM
+  </Card>
+  <Card title="HTTP Library" icon="globe">
+    libcurl with OpenSSL
+  </Card>
+</CardGroup>
+
+## Linux Installation
+
+<Tabs>
+  <Tab title="Debian/Ubuntu 32-bit">
+    <Steps>
+      <Step title="Install Dependencies">
+        Install the required build tools and libraries:
+
+        ```bash
+        sudo apt-get install nasm build-essential libcurl4-openssl-dev
+        ```
+
+        <Note>
+          The `build-essential` package includes GCC, G++, make, and other essential compilation tools.
+        </Note>
+      </Step>
+
+      <Step title="Compile the Server">
+        Navigate to the source directory and run the build script:
+
+        ```bash
+        ./build_elf.sh
+        ```
+
+        The script will:
+        1. Compile all C source files with `-m32` flag
+        2. Assemble NASM files to ELF format
+        3. Link everything into `bin/cod4u_lnx`
+        4. Clean up intermediate object files
+      </Step>
+
+      <Step title="Verify Installation">
+        Check that the server binary was created successfully:
+
+        ```bash
+        ls -lh bin/cod4u_lnx
+        ```
+
+        You should see the compiled server executable in the `bin` directory.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Debian/Ubuntu 64-bit">
+    <Steps>
+      <Step title="Enable 32-bit Architecture">
+        Since CoD4 Unleashed is compiled as a 32-bit application, you need to enable multilib support:
+
+        ```bash
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        ```
+
+        <Warning>
+          This step is crucial for 64-bit systems. Skipping it will result in compilation errors.
+        </Warning>
+      </Step>
+
+      <Step title="Install Dependencies">
+        Install 32-bit libraries and multilib compiler support:
+
+        ```bash
+        sudo apt-get install nasm:i386 build-essential gcc-multilib g++-multilib libcurl4-openssl-dev:i386
+        ```
+
+        <Accordion title="Understanding the packages">
+          - `nasm:i386` - 32-bit assembler
+          - `gcc-multilib` - GCC with 32-bit compilation support
+          - `g++-multilib` - G++ with 32-bit compilation support
+          - `libcurl4-openssl-dev:i386` - 32-bit curl development files with OpenSSL
+        </Accordion>
+      </Step>
+
+      <Step title="Compile the Server">
+        Run the Linux build script:
+
+        ```bash
+        ./build_elf.sh
+        ```
+
+        The compilation process includes:
+        - Compiling C sources with `-m32 -mtune=nocona` flags
+        - Assembling platform-specific hooks
+        - Linking with libcurl, libtomcrypt, and libtommath
+      </Step>
+
+      <Step title="Verify Installation">
+        Confirm the binary is 32-bit:
+
+        ```bash
+        file bin/cod4u_lnx
+        ```
+
+        Expected output: `ELF 32-bit LSB executable, Intel 80386...`
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Arch Linux">
+    <Steps>
+      <Step title="Install Dependencies">
+        ```bash
+        sudo pacman -S base-devel nasm curl
+        ```
+      </Step>
+
+      <Step title="Install 32-bit Libraries (64-bit systems)">
+        If you're on a 64-bit system, enable multilib repository:
+
+        1. Edit `/etc/pacman.conf` and uncomment:
+        ```ini
+        [multilib]
+        Include = /etc/pacman.d/mirrorlist
+        ```
+
+        2. Install 32-bit GCC libraries:
+        ```bash
+        sudo pacman -Sy lib32-gcc-libs
+        ```
+      </Step>
+
+      <Step title="Compile the Server">
+        ```bash
+        ./build_elf.sh
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Windows Installation
+
+<Steps>
+  <Step title="Install MinGW32">
+    Download and install MinGW32 (Minimalist GNU for Windows):
+    
+    - Visit [mingw.org](http://mingw.org/)
+    - Install the 32-bit version with GCC compiler
+    - Add MinGW's `bin` directory to your PATH
+  </Step>
+
+  <Step title="Install NASM">
+    Download NASM for Windows:
+    
+    - Visit [nasm.us](https://www.nasm.us/)
+    - Install to `%LOCALAPPDATA%\nasm` or add to PATH
+    
+    <Note>
+      The build script automatically adds `%LOCALAPPDATA%\nasm` to the PATH if NASM is installed there.
+    </Note>
+  </Step>
+
+  <Step title="Install OpenSSL">
+    Download and install Win32 OpenSSL:
+    
+    - Visit [slproweb.com/products/Win32OpenSSL.html](https://slproweb.com/products/Win32OpenSSL.html)
+    - Download **Win32 OpenSSL v1.1.1g or later** (not the Light version)
+    - Install with default options
+    
+    <Warning>
+      Make sure to install the **32-bit version**, not the 64-bit version. The server requires 32-bit libraries.
+    </Warning>
+  </Step>
+
+  <Step title="Compile the Server">
+    Open Command Prompt in the source directory and run:
+
+    ```cmd
+    build_win32.cmd
+    ```
+
+    The build process will:
+    1. Set up the NASM path
+    2. Compile C sources with `-m32 -march=nocona -D WINVER=0x501`
+    3. Assemble NASM files to COFF format with `--prefix _`
+    4. Link with Windows-specific libraries (ws2_32, wsock32, gdi32, winmm)
+    5. Create plugin export library
+    6. Clean up object files
+  </Step>
+
+  <Step title="Verify Installation">
+    Check that `bin/cod4u_win32.exe` was created successfully:
+
+    ```cmd
+    dir bin\cod4u_win32.exe
+    ```
+  </Step>
+</Steps>
+
+## Build Script Details
+
+<CodeGroup>
+
+```bash build_elf.sh
+# Compile C code with 32-bit, debug symbols, and CoD4U flags
+gcc -m32 -Wall -O0 -g -fno-omit-frame-pointer -mtune=nocona \
+    -D COD4U -I../lib_tomcrypt/headers \
+    -I../lib_tomcrypt/math/tommath -D _GNU_SOURCE \
+    -c ../src/*.c
+
+# Assemble platform hooks
+nasm -f elf src/qcommon_hooks.asm -o bin/qcommon_hooks.o
+nasm -f elf src/cmd_hooks.asm -o bin/cmd_hooks.o
+nasm -f elf src/filesystem_hooks.asm -o bin/filesystem_hooks.o
+# ... more hooks
+
+# Link with custom linker script
+gcc -m32 -rdynamic -Tlinkerscript.ld -o bin/cod4u_lnx bin/*.o \
+    -Llib/ -lcurl -ltomcrypt_linux -ltommath_linux \
+    -ldl -lpthread -lm -lstdc++
+```
+
+```cmd build_win32.cmd
+@echo off
+@set currentDir=%cd%
+
+echo Compiling C-code...
+cd bin
+gcc -m32 -Wall -O0 -g -fno-omit-frame-pointer -march=nocona ^
+    -D COD4U -D WINVER=0x501 ^
+    -I../lib_tomcrypt/headers ^
+    -I../lib_tomcrypt/math/tommath ^
+    -c ../src/functions/*.c
+
+echo Compiling NASM...
+nasm -f coff src/qcommon_hooks.asm --prefix _ -o bin/qcommon_hooks.o
+
+echo Linking...
+gcc -g -Wl,--nxcompat,--image-base,0x8040000 ^
+    -Tlinkerscript_win32.ld -o bin/cod4u_win32 bin/*.o ^
+    -Llib/ -lcurl -ltomcrypt_win32 -ltommath_win32 ^
+    -lws2_32 -lwsock32 -lgdi32 -mwindows -lwinmm -static-libgcc
+```
+
+</CodeGroup>
+
+<Accordion title="Compiler Flags Explained">
+  - `-m32` - Compile for 32-bit architecture
+  - `-Wall` - Enable all compiler warnings
+  - `-O0` - No optimization (for debugging)
+  - `-g` - Include debug symbols
+  - `-fno-omit-frame-pointer` - Keep frame pointer for better stack traces
+  - `-mtune=nocona` / `-march=nocona` - Optimize for Intel Nocona architecture
+  - `-D COD4U` - Define COD4U preprocessor macro
+  - `-D _GNU_SOURCE` - Enable GNU extensions (Linux)
+  - `-D WINVER=0x501` - Target Windows XP SP3+ (Windows)
+</Accordion>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: cannot find -lcurl">
+    **Problem**: libcurl development files are not installed or not found.
+
+    **Solution**:
+    - Linux: Install `libcurl4-openssl-dev:i386`
+    - Windows: Ensure libcurl is in the `lib/` directory
+  </Accordion>
+
+  <Accordion title="Error: nasm: command not found">
+    **Problem**: NASM is not installed or not in PATH.
+
+    **Solution**:
+    - Linux: `sudo apt-get install nasm:i386` or `sudo pacman -S nasm`
+    - Windows: Install NASM and add to PATH or place in `%LOCALAPPDATA%\nasm`
+  </Accordion>
+
+  <Accordion title="Error: gcc: error: unrecognized option '-m32'">
+    **Problem**: 32-bit compilation support is not enabled (64-bit Linux).
+
+    **Solution**:
+    ```bash
+    sudo apt-get install gcc-multilib g++-multilib
+    ```
+  </Accordion>
+
+  <Accordion title="Windows: Missing DLL errors when running">
+    **Problem**: OpenSSL DLLs are not found at runtime.
+
+    **Solution**:
+    - Ensure Win32 OpenSSL is properly installed
+    - Copy required DLLs to the `bin/` directory
+    - Add OpenSSL installation directory to PATH
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Now that you've compiled the server, learn how to configure and launch it.
+</Card>

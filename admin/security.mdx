@@ -1,0 +1,529 @@
+---
+title: 'Security Features'
+description: 'Ban system, IP protection, and security features in CoD4 Unleashed'
+---
+
+## Overview
+
+CoD4 Unleashed includes comprehensive security features to protect your server from malicious players, including a sophisticated ban system, IP-based temporary bans, and built-in brute-force protection.
+
+<Note>
+  The server uses a dual-layer ban system: persistent UID/GUID bans stored in a file, and temporary IP bans stored in memory.
+</Note>
+
+## Ban System Architecture
+
+### Persistent Bans (Banlist)
+
+Persistent bans are stored in a file and survive server restarts.
+
+**Ban structure:**
+```c
+typedef struct banList_s {
+  time_t expire;                    // Expiration timestamp
+  time_t created;                   // Creation timestamp
+  int playeruid;                    // Player UID
+  int adminuid;                     // Banning admin's UID
+  char pbguid[9];                   // PunkBuster GUID (8 chars)
+  char reason[128];                 // Ban reason
+  char playername[MAX_NAME_LENGTH]; // Player name
+} banList_t;
+```
+
+**Source:** `sv_banlist.c:67-75`
+
+### Temporary IP Bans
+
+IP bans are temporary and stored in memory (up to 32 concurrent).
+
+**IP ban structure:**
+```c
+typedef struct {
+  netadr_t remote;      // IP address
+  char banmsg[128];     // Ban message
+  int uid;              // Player UID
+  char guid[9];         // GUID
+  unsigned int timeout; // Internal timeout
+  int expire;           // Expiration time
+  int systime;          // System time
+  int adminuid;         // Admin UID
+} ipBanList_t;
+```
+
+**Source:** `sv_banlist.c:51-63`
+
+## Configuration
+
+### Ban System CVars
+
+<ParamField path="banlist_filename" type="string" default="banlist.dat">
+  Filename for storing the persistent banlist
+</ParamField>
+
+<ParamField path="banlist_maxipbantime" type="integer" default="240">
+  Maximum minutes to keep an IP ban active (default: 4 hours)
+  
+  Range: 0-20160 (0 to 14 days)
+</ParamField>
+
+<ParamField path="banlist_appealurl" type="string" default="">
+  URL displayed to banned players for ban appeals
+</ParamField>
+
+<ParamField path="banlist_appealminhours" type="integer" default="4">
+  Minimum hours remaining on ban before showing appeal URL
+  
+  Range: 0-336 (0 to 14 days)
+</ParamField>
+
+**Source:** `sv_banlist.c:540-550`
+
+### Initialization
+
+Ban system initialization:
+
+```c
+void SV_InitBanlist() {
+  Com_Memset(ipBans, 0, sizeof(ipBans));
+  banlistfile = Cvar_RegisterString("banlist_filename", "banlist.dat", CVAR_INIT, ...);
+  ipbantime = Cvar_RegisterInt("banlist_maxipbantime", 240, 0, 20160, 0, ...);
+  // Load banlist from file
+  SV_LoadBanlist();
+}
+```
+
+**Source:** `sv_banlist.c:537-560`
+
+## Ban Management
+
+### Adding Bans
+
+#### Permanent Bans
+
+Using the `permban` command adds a persistent ban:
+
+```c
+qboolean SV_AddBan(int uid, int auid, char* guid, char* name, 
+                   time_t expire, char* banreason)
+```
+
+**Parameters:**
+- `uid` - Player UID (preferred)
+- `auid` - Admin UID issuing the ban
+- `guid` - PunkBuster GUID (8 chars)
+- `name` - Player name
+- `expire` - Unix timestamp, or `-1` for permanent
+- `banreason` - Reason string (max 126 chars)
+
+**Process:**
+1. Reload banlist from file
+2. Check for duplicate entry
+3. Add/modify ban record
+4. Write banlist to file
+
+**Source:** `sv_banlist.c:583-661`
+
+#### Temporary IP Bans
+
+Automatic IP bans for enforcement:
+
+```c
+void SV_PlayerAddBanByip(netadr_t* remote, char* reason, int uid, 
+                         char* guid, int adminuid, int expire)
+```
+
+**Features:**
+- Maximum 32 concurrent IP bans
+- Oldest bans replaced when limit reached
+- Duration limited by `banlist_maxipbantime`
+- Used for ban enforcement and brute-force protection
+
+**Source:** `sv_banlist.c:332-390`
+
+### Removing Bans
+
+```c
+qboolean SV_RemoveBan(int uid, char* guid, char* name)
+```
+
+**Supports removal by:**
+- UID
+- GUID (8 characters)
+- Player name
+
+**Process:**
+1. Reload banlist
+2. Find matching entries
+3. Set expire time to 0
+4. Remove corresponding IP bans
+5. Write updated banlist
+
+**Source:** `sv_banlist.c:663-738`
+
+### Viewing Bans
+
+Dump all active bans:
+
+```bash
+dumpbanlist
+```
+
+**Output format:**
+```
+0 uid: 300123456; nick: Player1; guid: abc12345; adminuid: 300999999; expire: Never; reason: Hacking
+1 uid: 300234567; nick: Player2; guid: def67890; adminuid: 300999999; expire: Mon Jan 15 2024; reason: Toxic behavior
+10 Active bans
+```
+
+**Source:** `sv_banlist.c:740-772`
+
+## Ban Checking
+
+### Connection Ban Check
+
+Every player connection is checked against bans:
+
+```c
+char* SV_PlayerIsBanned(int uid, char* pbguid, netadr_t* addr, 
+                        char* message, int len)
+```
+
+**Check order:**
+1. UID-based persistent ban (if uid > 0)
+2. GUID-based persistent ban (if guid exists)
+3. Returns NULL if not banned, or message if banned
+
+**Enforces ban by:**
+- Creating temporary IP ban
+- Returning formatted disconnect message
+- Including appeal URL if configured
+
+**Source:** `sv_banlist.c:429-535`
+
+### IP Ban Check
+
+```c
+char* SV_PlayerBannedByip(netadr_t* netadr, char* message, int len)
+```
+
+**Checks:**
+- Compares base address against all IP bans
+- Validates expiration time
+- Returns formatted message with:
+  - Ban type (permanent/temporary)
+  - Remaining time (for temp bans)
+  - UID or GUID
+  - Banning admin UID
+  - Ban reason
+  - Appeal URL (if applicable)
+
+**Source:** `sv_banlist.c:262-329`
+
+## Ban Messages
+
+### Permanent Ban Message
+
+```
+Enforcing prior ban
+You have been permanently banned from this server
+You will be never allowed to join this gameserver again
+ Your UID is: 300123456    Banning admin UID is: 300999999
+Reason for this ban:
+Hacking detected
+[Appeal URL if configured]
+```
+
+### Temporary Ban Message
+
+```
+Enforcing prior kick/ban
+You have been temporarily banned from this server
+Your ban will expire in
+ 2 days 5 hours 30 minutes
+ Your UID is: 300123456    Banning admin UID is: 300999999
+Reason for this ban:
+Toxic behavior
+[Appeal URL if remaining time >= banlist_appealminhours]
+```
+
+**Source:** `sv_banlist.c:290-323`, `sv_banlist.c:453-488`
+
+## Banlist File Format
+
+### Storage Format
+
+Bans are stored as infostring lines:
+
+```
+uid\300123456\nick\Player1\rsn\Hacking\exp\-1\create\1704067200\auid\300999999\
+uid\300234567\nick\Player2\rsn\Toxic\exp\1704153600\create\1704067200\auid\300999999\
+guid\abc12345\nick\Player3\rsn\Cheating\exp\-1\create\1704067200\auid\300999999\
+```
+
+**Fields:**
+- `uid` - Player UID (preferred identifier)
+- `guid` - 8-character GUID (alternative identifier)
+- `nick` - Player nickname
+- `rsn` - Ban reason
+- `exp` - Expiration Unix timestamp (`-1` = never)
+- `create` - Creation Unix timestamp
+- `auid` - Admin UID who created the ban
+
+**Source:** `sv_banlist.c:239-253`
+
+### Loading Banlist
+
+```c
+void SV_LoadBanlist() {
+  // Open banlist file
+  FS_SV_FOpenFileRead(banlistfile->string, &file);
+  
+  // Parse each line
+  for (i = 0, error = 0; error < 32; i++) {
+    read = FS_ReadLine(buf, sizeof(buf), file);
+    if (!SV_ParseBanlist(buf, aclock, i + 1))
+      error++;
+  }
+}
+```
+
+**Features:**
+- Expired bans automatically skipped
+- Duplicate entries rejected
+- Maximum 32 errors before abort
+
+**Source:** `sv_banlist.c:172-212`
+
+### Saving Banlist
+
+```c
+void SV_WriteBanlist() {
+  // Open temporary file
+  file = FS_SV_FOpenFileWrite(va("%s.tmp", banlistfile->string));
+  
+  // Write only active bans
+  for (i = 0; i < current_banindex; this++, i++) {
+    if (this->expire == (time_t)-1 || this->expire > aclock) {
+      // Format infostring and write
+    }
+  }
+  
+  // Rename temp file to banlist
+  FS_SV_HomeCopyFile(va("%s.tmp", banlistfile->string), banlistfile->string);
+}
+```
+
+**Source:** `sv_banlist.c:214-259`
+
+## Brute-Force Protection
+
+### Failed Login Protection
+
+The server automatically protects against brute-force attacks:
+
+**Web Admin:**
+```c
+if (Auth_Authorize(username, password) < 0) {
+  Com_Printf("^1Invalid login\n");
+  SV_PlayerAddBanByip(&request->remote,
+    "Invalid login attempt. You have to wait 20 seconds", 
+    0, NULL, 0, Com_GetRealtime() + 10);
+}
+```
+
+**Source:** `webadmin.c:814-820`
+
+**RCON (HL2Rcon):**
+```c
+badrcon:
+  Com_Printf("Bad rcon from %s (TCP)\n", NET_AdrToString(from));
+  SV_PlayerAddBanByip(from, "Bad rcon", 0, NULL, 0, Com_GetRealtime() + 20);
+```
+
+**Source:** `hl2rcon.c:217-221`
+
+### In-Game Login Protection
+
+Failed in-game admin login:
+
+```c
+if (Auth_Authorize(username, password) < 0) {
+  SV_DropClient(invoker, "Incorrect login credentials.\n");
+  return;
+}
+```
+
+**Source:** `sv_auth.c:620-623`
+
+## IP Ban Management
+
+### Maximum IP Ban Duration
+
+IP bans are limited to prevent blocking shared IPs:
+
+```c
+duration = expire - Com_GetRealtime();
+if (duration > ipbantime->integer * 60 || expire == -1)
+  duration = ipbantime->integer * 60;
+```
+
+<Note>
+  **Reason:** Carrier-grade NAT and shared IPs mean multiple users can share the same IP address. Limiting IP ban duration prevents innocent users from being blocked.
+</Note>
+
+**Default:** 240 minutes (4 hours)
+**Maximum:** 20160 minutes (14 days)
+
+**Source:** `sv_banlist.c:382-385`
+
+### IP Ban Replacement
+
+When IP ban limit reached:
+
+```c
+if (i == MAX_IPBANS) {
+  list = &ipBans[oldest];  // Replace oldest ban
+}
+```
+
+**Oldest determination:**
+- Tracks `systime` (Sys_Milliseconds())
+- Replaces ban with lowest systime value
+
+**Source:** `sv_banlist.c:356-364`
+
+### Removing IP Bans
+
+```c
+void SV_RemoveBanByip(netadr_t* remote, int uid, char* guid)
+```
+
+**Removal methods:**
+1. By UID (if uid > 0)
+2. By GUID (if guid exists)
+3. By IP address (if remote != NULL)
+
+**Source:** `sv_banlist.c:392-427`
+
+## Appeal System
+
+### Appeal URL Configuration
+
+Configure ban appeal URL:
+
+```bash
+set banlist_appealurl "https://your-website.com/appeal"
+set banlist_appealminhours 4
+```
+
+### Appeal URL Display Logic
+
+```c
+if (sv_banappealminhours && srem < sv_banappealminhours->integer * 60 * 60) {
+  appealmsg[0] = '\0';  // Hide appeal URL
+}
+```
+
+<Note>
+  Appeal URLs are only shown if the remaining ban time exceeds the minimum hours. This prevents appeals for very short bans.
+</Note>
+
+**Examples:**
+- 7-day ban with 4-hour minimum: URL shown immediately
+- 2-hour ban with 4-hour minimum: URL never shown
+- 6-hour ban with 4-hour minimum: URL shown first 2 hours only
+
+**Source:** `sv_banlist.c:311-314`, `sv_banlist.c:476-479`, `sv_banlist.c:518-521`
+
+## Ban Expiration
+
+### Automatic Cleanup
+
+**On load:**
+Expired bans are skipped when loading from file:
+
+```c
+if (expire < aclock && expire != (time_t)-1) {
+  return qtrue;  // Skip this ban
+}
+```
+
+**Source:** `sv_banlist.c:126-128`
+
+**On save:**
+Only active bans are written:
+
+```c
+if (this->expire == (time_t)-1 || this->expire > aclock) {
+  // Write ban to file
+}
+```
+
+**Source:** `sv_banlist.c:237`
+
+### Time Display Format
+
+Remaining time formatted as days, hours, minutes:
+
+```c
+int remaining = (int)(expire - Com_GetRealtime());
+int d = remaining / (60 * 60 * 24);
+remaining = remaining % (60 * 60 * 24);
+int h = remaining / (60 * 60);
+remaining = remaining % (60 * 60);
+int m = remaining / 60;
+```
+
+**Output:** "2 days 5 hours 30 minutes"
+
+**Source:** `sv_banlist.c:305-309`, `sv_banlist.c:470-474`, `sv_banlist.c:512-516`
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use UID Bans" icon="fingerprint">
+    Prefer UID-based bans over GUID for better reliability and player tracking
+  </Card>
+  
+  <Card title="Configure Appeals" icon="envelope">
+    Set up appeal URL for legitimate players to contest false bans
+  </Card>
+  
+  <Card title="Review Regularly" icon="list-check">
+    Periodically review active bans with `dumpbanlist`
+  </Card>
+  
+  <Card title="Moderate IP Duration" icon="clock">
+    Keep IP ban duration reasonable (4-24 hours) to avoid shared IP issues
+  </Card>
+</CardGroup>
+
+### Admin Guidelines
+
+<Warning>
+  **Important Considerations:**
+  - Always provide clear ban reasons
+  - Verify evidence before permanent bans
+  - Use temporary bans for first-time offenses
+  - Document admin actions for accountability
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Server Commands" icon="terminal" href="/admin/server-commands">
+    Ban/kick/tempban command reference
+  </Card>
+  
+  <Card title="Authentication" icon="shield-check" href="/admin/authentication">
+    UID system and admin management
+  </Card>
+  
+  <Card title="Web Admin" icon="browser" href="/admin/web-admin">
+    Web-based ban management interface
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Configure server security settings
+  </Card>
+</CardGroup>

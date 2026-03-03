@@ -1,0 +1,418 @@
+---
+title: 'GSC Scripting Overview'
+description: 'Introduction to Game Script (GSC) scripting in CoD4 Unleashed Server'
+---
+
+## What is GSC?
+
+Game Script (GSC) is the scripting language used in Call of Duty 4 for creating custom game modes, server logic, and gameplay mechanics. CoD4 Unleashed Server extends the standard GSC functionality with powerful new features.
+
+## Key Features
+
+CoD4 Unleashed provides extensive enhancements to the GSC scripting environment:
+
+<CardGroup cols={2}>
+  <Card title="Player Management" icon="users">
+    Control player properties, permissions, movement physics, and input detection
+  </Card>
+  <Card title="HTTP Requests" icon="globe">
+    Make external API calls with GET, POST, PUT, PATCH, and DELETE methods
+  </Card>
+  <Card title="File Operations" icon="file">
+    Read and write files for persistent data storage
+  </Card>
+  <Card title="Advanced String Operations" icon="text">
+    Enhanced string manipulation including SHA256 hashing and pixel-based text operations
+  </Card>
+</CardGroup>
+
+## Script Structure
+
+### Basic Syntax
+
+GSC scripts use a C-like syntax with functions, variables, and control structures:
+
+```gsc
+// Function definition
+myFunction() {
+    variable = "Hello World";
+    iprintln(variable);
+}
+
+// Function with parameters
+add(a, b) {
+    return a + b;
+}
+
+// Conditional logic
+checkValue(value) {
+    if (value > 10) {
+        iprintln("Greater than 10");
+    } else {
+        iprintln("Less than or equal to 10");
+    }
+}
+```
+
+### Script Loading
+
+<Info>
+CoD4 Unleashed supports both `.gsc` and `.gsx` file extensions. When loading scripts, the server will first try to load `.gsx` files, allowing you to use extended functionality while maintaining compatibility with standard scripts.
+</Info>
+
+Scripts are loaded from the following locations:
+- `main/maps/mp/gametypes/` - Gametype scripts
+- `main/maps/mp/` - Map scripts
+- `main/codescripts/` - Core system scripts
+
+## Data Types
+
+GSC supports several data types:
+
+### Primitives
+
+<CodeGroup>
+```gsc String
+name = "Player";
+message = "Hello " + name;
+```
+
+```gsc Integer
+score = 100;
+kills = 5;
+```
+
+```gsc Float
+speed = 1.5;
+health = 100.0;
+```
+
+```gsc Boolean
+isAlive = true;
+isAdmin = false;
+```
+</CodeGroup>
+
+### Arrays
+
+Arrays are a core data structure in GSC:
+
+```gsc
+// Create an array
+players = [];
+
+// Add elements
+players[0] = "Player1";
+players[1] = "Player2";
+players[players.size] = "Player3"; // Append to end
+
+// Associative arrays (objects)
+playerData = [];
+playerData["name"] = "John";
+playerData["score"] = 100;
+playerData["kills"] = 5;
+
+// Get array size
+count = players.size;
+```
+
+### Vectors
+
+Vectors represent 3D coordinates:
+
+```gsc
+position = (100, 200, 50); // x, y, z
+velocity = (10, 0, 5);
+
+// Vector operations
+newPos = vectorAdd(position, velocity);
+scaledVel = vectorScale(velocity, 2.0);
+```
+
+## Built-in Functions
+
+CoD4 Unleashed provides hundreds of built-in functions. Here are some commonly used categories:
+
+### Player Functions
+
+```gsc
+// Player information
+uid = self getUid();
+ip = self getIp();
+ping = self getPing();
+fps = self getFps();
+
+// Player control
+self setGravity(800);
+self setJumpHeight(64);
+self setMoveSpeed(190);
+self setVelocity((0, 0, 100));
+```
+
+### String Functions
+
+```gsc
+// String manipulation
+upper = toUpper("hello");
+lower = toLower("WORLD");
+stripped = strColorStrip("^1Red^7Text");
+replaced = strRepl("Hello World", "World", "GSC");
+
+// Hash generation
+hash = sha256("password123");
+```
+
+### Time Functions
+
+```gsc
+// Get current time
+epochTime = getEpochTime();
+realTime = getRealTime();
+
+// Format time
+timeStr = epochTimeToString(epochTime, 1, "%Y-%m-%d %H:%M:%S");
+```
+
+### Math Functions
+
+```gsc
+result = abs(-5);           // 5
+max = max(10, 20);          // 20
+min = min(10, 20);          // 10
+squared = sqrt(16);         // 4
+floored = floor(3.7);       // 3
+ceiled = ceil(3.2);         // 4
+```
+
+## Type Checking
+
+CoD4 Unleashed provides comprehensive type checking:
+
+```gsc
+if (isDefined(variable)) {
+    iprintln("Variable exists");
+}
+
+if (isString(variable)) {
+    iprintln("Variable is a string");
+}
+
+if (isInt(variable)) {
+    iprintln("Variable is an integer");
+}
+
+if (isFloat(variable)) {
+    iprintln("Variable is a float");
+}
+
+if (isArray(variable)) {
+    iprintln("Variable is an array");
+}
+
+if (isBool(variable)) {
+    iprintln("Variable is a boolean");
+}
+
+if (isVector(variable)) {
+    iprintln("Variable is a vector");
+}
+```
+
+## Entities and Objects
+
+### Entity Reference (self)
+
+Many functions operate on entities using the `self` keyword:
+
+```gsc
+// Called on a player entity
+PlayerConnected() {
+    self iprintln("Welcome " + self.name);
+    self.score = 0;
+    self.kills = 0;
+    
+    // Entity methods use 'self'
+    uid = self getUid();
+    ip = self getIp();
+}
+```
+
+### Spawning Entities
+
+```gsc
+// Spawn a new entity
+ent = spawn("script_model", (0, 0, 0));
+ent setModel("com_plasticcase_beige_big");
+
+// Spawn a helicopter
+heli = spawnHelicopter(owner, origin, angles, model, type);
+```
+
+## Script Callbacks
+
+Gametype scripts use callbacks for game events:
+
+```gsc
+// Called when a player connects
+CodeCallback_PlayerConnect() {
+    self.pers["score"] = 0;
+    self.pers["deaths"] = 0;
+}
+
+// Called when a player is damaged
+CodeCallback_PlayerDamage(eInflictor, eAttacker, iDamage, iDFlags, sMeansOfDeath, sWeapon, vPoint, vDir, sHitLoc, psOffsetTime) {
+    // Custom damage logic
+    if (sMeansOfDeath == "MOD_FALLING") {
+        iDamage = int(iDamage * 0.5); // Reduce fall damage
+    }
+}
+
+// Called when a player is killed
+CodeCallback_PlayerKilled(eInflictor, attacker, iDamage, sMeansOfDeath, sWeapon, vDir, sHitLoc, psOffsetTime, deathAnimDuration) {
+    self.deaths++;
+    if (isPlayer(attacker)) {
+        attacker.kills++;
+    }
+}
+```
+
+## Threading
+
+GSC supports threaded execution for concurrent operations:
+
+```gsc
+// Start a function in a new thread
+thread myFunction();
+
+// Thread with parameters
+thread delayedMessage("Hello", 5);
+
+delayedMessage(message, delay) {
+    wait delay;
+    iprintln(message);
+}
+
+// Endon - terminate thread when event occurs
+monitorPlayer() {
+    self endon("disconnect");
+    self endon("death");
+    
+    for(;;) {
+        // This loop will end when player disconnects or dies
+        wait 1;
+        iprintln("Still alive: " + self.name);
+    }
+}
+```
+
+## Error Handling
+
+<Warning>
+GSC does not have try-catch blocks. Use assertions and careful validation to prevent script errors.
+</Warning>
+
+```gsc
+// Assertions for debugging
+assertEx(isDefined(variable), "Variable must be defined");
+assertEx(isArray(players), "Players must be an array");
+
+// Validation
+if (!isDefined(self) || !isPlayer(self)) {
+    return; // Early exit
+}
+
+if (value < 0 || value > 100) {
+    value = clamp(value, 0, 100);
+}
+```
+
+## Modules and Namespaces
+
+Organize code using namespace notation:
+
+```gsc
+// File: unleashed/utils.gsc
+getPlayerCount() {
+    count = 0;
+    players = getEntArray("player", "classname");
+    return players.size;
+}
+
+// Usage in another script
+count = unleashed\utils::getPlayerCount();
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Meaningful Names">
+    Choose descriptive variable and function names:
+    ```gsc
+    // Good
+    playerScore = 100;
+    calculateDamageMultiplier();
+    
+    // Bad
+    ps = 100;
+    calcDM();
+    ```
+  </Step>
+  
+  <Step title="Validate Input">
+    Always check if variables are defined and have expected types:
+    ```gsc
+    processPlayer(player) {
+        if (!isDefined(player) || !isPlayer(player)) {
+            return;
+        }
+        // Process player
+    }
+    ```
+  </Step>
+  
+  <Step title="Avoid Infinite Loops">
+    Always include wait statements in loops:
+    ```gsc
+    // Good
+    for(;;) {
+        wait 1;
+        doSomething();
+    }
+    
+    // Bad - will freeze server
+    for(;;) {
+        doSomething();
+    }
+    ```
+  </Step>
+  
+  <Step title="Use Threading Wisely">
+    Thread long-running operations to prevent blocking:
+    ```gsc
+    // Thread for background tasks
+    thread monitorServerStatus();
+    
+    // Main logic continues
+    initializeGame();
+    ```
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+- **Minimize string concatenation in loops** - Build strings efficiently
+- **Cache array sizes** - Store `array.size` in a variable if used multiple times
+- **Use `wait` in loops** - Prevent script execution timeout
+- **Clean up entities** - Delete unused entities to free memory
+- **Avoid nested loops** - Consider algorithmic optimizations
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/scripting/getting-started">
+    Learn how to write your first GSC script
+  </Card>
+  <Card title="Player Functions" icon="user" href="/scripting/player/info">
+    Explore all player-specific functions and methods
+  </Card>
+</CardGroup>

@@ -1,0 +1,693 @@
+---
+title: 'Player Controls'
+description: 'Functions for detecting player button presses and input'
+icon: 'gamepad'
+---
+
+## Overview
+
+These functions allow you to detect when players press specific buttons or keys. This is useful for creating custom interactions, special moves, or detecting player input for game mechanics.
+
+## isButtonPressed
+
+Checks if a specific button is currently pressed by the player.
+
+```gsc
+bool isButtonPressed(<keyId>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="keyId" type="int" required>
+  The button/key ID to check. Common values:
+  - `2` - Sprint
+  - `32` - Reload
+  - `64` - Lean Left
+  - `128` - Lean Right
+  - `1024` - Jump
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the button is currently pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+MonitorCustomAction()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        // Check if reload button is pressed
+        if(self isButtonPressed(32))
+        {
+            self thread CustomReloadAction();
+            wait 1; // Cooldown
+        }
+    }
+}
+
+CheckButtonCombo()
+{
+    // Check for specific button combination
+    if(self isButtonPressed(2) && self isButtonPressed(1024))
+    {
+        // Sprint + Jump combo
+        self thread SuperJumpAbility();
+    }
+}
+```
+
+---
+
+## jumpButtonPressed
+
+Checks if the jump button is currently pressed.
+
+```gsc
+bool jumpButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the jump button is pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+DoubleJumpAbility()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    self.canDoubleJump = false;
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if(!self isOnGround())
+        {
+            if(self jumpButtonPressed() && !self.canDoubleJump)
+            {
+                // Player pressed jump in air - double jump!
+                velocity = self getVelocity();
+                self setVelocity((velocity[0], velocity[1], 400));
+                self.canDoubleJump = true;
+                
+                self playSound("double_jump_sound");
+            }
+        }
+        else
+        {
+            self.canDoubleJump = false;
+        }
+    }
+}
+
+JumpCounter()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    self.jumpCount = 0;
+    wasJumping = false;
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        isJumping = self jumpButtonPressed();
+        
+        if(isJumping && !wasJumping)
+        {
+            self.jumpCount++;
+            iPrintLn(self.name + " jumped! Total: " + self.jumpCount);
+        }
+        
+        wasJumping = isJumping;
+    }
+}
+```
+
+---
+
+## sprintButtonPressed
+
+Checks if the sprint button is currently pressed.
+
+```gsc
+bool sprintButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the sprint button is pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+SprintStaminaSystem()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    self.stamina = 100;
+    self.maxStamina = 100;
+    
+    for(;;)
+    {
+        wait 0.1;
+        
+        if(self sprintButtonPressed() && self.stamina > 0)
+        {
+            self.stamina -= 1;
+            
+            if(self.stamina <= 0)
+            {
+                self.stamina = 0;
+                self iPrintLnBold("^1Out of stamina!");
+            }
+        }
+        else if(self.stamina < self.maxStamina)
+        {
+            self.stamina += 0.5;
+        }
+        
+        // Update HUD
+        self.staminaBar setValue(self.stamina);
+    }
+}
+
+SprintSpeedBoost()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    wasSprinting = false;
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        isSprinting = self sprintButtonPressed();
+        
+        if(isSprinting && !wasSprinting)
+        {
+            // Started sprinting
+            self setMoveSpeed(250);
+        }
+        else if(!isSprinting && wasSprinting)
+        {
+            // Stopped sprinting
+            self setMoveSpeed(190);
+        }
+        
+        wasSprinting = isSprinting;
+    }
+}
+```
+
+---
+
+## leanLeftButtonPressed
+
+Checks if the lean left button is currently pressed.
+
+```gsc
+bool leanLeftButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the lean left button is pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+LeanPeekDetector()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if(self leanLeftButtonPressed())
+        {
+            if(!isDefined(self.isLeaningLeft))
+            {
+                self.isLeaningLeft = true;
+                self thread ApplyLeanLeftEffect();
+            }
+        }
+        else
+        {
+            self.isLeaningLeft = undefined;
+        }
+    }
+}
+```
+
+---
+
+## leanRightButtonPressed
+
+Checks if the lean right button is currently pressed.
+
+```gsc
+bool leanRightButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the lean right button is pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+LeanPeekDetector()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if(self leanRightButtonPressed())
+        {
+            if(!isDefined(self.isLeaningRight))
+            {
+                self.isLeaningRight = true;
+                self thread ApplyLeanRightEffect();
+            }
+        }
+        else
+        {
+            self.isLeaningRight = undefined;
+        }
+    }
+}
+
+LeanAccuracyBonus()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.1;
+        
+        if(self leanLeftButtonPressed() || self leanRightButtonPressed())
+        {
+            // Apply accuracy bonus while leaning
+            self.accuracyBonus = 1.5;
+        }
+        else
+        {
+            self.accuracyBonus = 1.0;
+        }
+    }
+}
+```
+
+---
+
+## reloadButtonPressed
+
+Checks if the reload button is currently pressed.
+
+```gsc
+bool reloadButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the reload button is pressed, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+FastReloadPerk()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    wasReloading = false;
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        isReloading = self reloadButtonPressed();
+        
+        if(isReloading && !wasReloading)
+        {
+            // Just started reloading
+            if(self hasPerk("specialty_fastreload"))
+            {
+                self iPrintLn("^2Fast reload active!");
+            }
+        }
+        
+        wasReloading = isReloading;
+    }
+}
+
+InterruptReload()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if(self reloadButtonPressed())
+        {
+            weapon = self getCurrentWeapon();
+            ammo = self getWeaponAmmoClip(weapon);
+            
+            if(ammo == 0)
+            {
+                self iPrintLn("^1Reloading empty weapon!");
+            }
+        }
+    }
+}
+```
+
+---
+
+## forwardButtonPressed
+
+Checks if the forward movement button is currently pressed.
+
+```gsc
+bool forwardButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if moving forward, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+ChargeAttackAbility()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    chargeTime = 0;
+    
+    for(;;)
+    {
+        wait 0.1;
+        
+        if(self forwardButtonPressed() && self sprintButtonPressed())
+        {
+            chargeTime += 0.1;
+            
+            if(chargeTime >= 2.0)
+            {
+                self thread PerformChargeAttack();
+                chargeTime = 0;
+            }
+        }
+        else
+        {
+            chargeTime = 0;
+        }
+    }
+}
+```
+
+---
+
+## backwardButtonPressed
+
+Checks if the backward movement button is currently pressed.
+
+```gsc
+bool backwardButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if moving backward, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+BackpedalDetector()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if(self backwardButtonPressed())
+        {
+            // Reduce movement speed when moving backward
+            self setMoveSpeed(150);
+        }
+        else
+        {
+            self setMoveSpeed(190);
+        }
+    }
+}
+```
+
+---
+
+## leftButtonPressed
+
+Checks if the left strafe button is currently pressed.
+
+```gsc
+bool leftButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if strafing left, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+StrafeJumpDetector()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        if((self leftButtonPressed() || self rightButtonPressed()) && self jumpButtonPressed())
+        {
+            // Strafe jumping detected
+            self.isStrafeJumping = true;
+        }
+        else
+        {
+            self.isStrafeJumping = false;
+        }
+    }
+}
+```
+
+---
+
+## rightButtonPressed
+
+Checks if the right strafe button is currently pressed.
+
+```gsc
+bool rightButtonPressed()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if strafing right, `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+MovementTracker()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.1;
+        
+        movementString = "";
+        
+        if(self forwardButtonPressed())
+            movementString += "Forward ";
+        if(self backwardButtonPressed())
+            movementString += "Backward ";
+        if(self leftButtonPressed())
+            movementString += "Left ";
+        if(self rightButtonPressed())
+            movementString += "Right ";
+        
+        if(movementString != "")
+        {
+            self.movementHud setText("Moving: " + movementString);
+        }
+        else
+        {
+            self.movementHud setText("Standing still");
+        }
+    }
+}
+
+DodgeAbility()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        // Double tap left to dodge left
+        if(self leftButtonPressed())
+        {
+            wait 0.2;
+            if(self leftButtonPressed())
+            {
+                self thread DodgeLeft();
+                wait 2; // Cooldown
+            }
+        }
+        
+        // Double tap right to dodge right
+        if(self rightButtonPressed())
+        {
+            wait 0.2;
+            if(self rightButtonPressed())
+            {
+                self thread DodgeRight();
+                wait 2; // Cooldown
+            }
+        }
+    }
+}
+
+DodgeLeft()
+{
+    right = anglesToRight(self.angles);
+    velocity = vectorScale(right, -500);
+    self setVelocity(velocity);
+    self iPrintLn("^2Dodge left!");
+}
+
+DodgeRight()
+{
+    right = anglesToRight(self.angles);
+    velocity = vectorScale(right, 500);
+    self setVelocity(velocity);
+    self iPrintLn("^2Dodge right!");
+}
+```
+
+## Complete Example
+
+Here's a comprehensive example combining multiple button detection functions:
+
+```gsc
+AdvancedMovementSystem()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 0.05;
+        
+        // Wall run (forward + sprint + strafe)
+        if(self forwardButtonPressed() && self sprintButtonPressed())
+        {
+            if(self leftButtonPressed() || self rightButtonPressed())
+            {
+                if(self IsTouchingWall())
+                {
+                    self thread WallRun();
+                }
+            }
+        }
+        
+        // Slide (sprint + crouch)
+        if(self sprintButtonPressed() && self isButtonPressed(4))
+        {
+            self thread Slide();
+            wait 1;
+        }
+        
+        // Power jump (crouch + jump)
+        if(self isButtonPressed(4) && self jumpButtonPressed())
+        {
+            self setVelocity((0, 0, 600));
+            wait 0.5;
+        }
+    }
+}
+```
+
+## Related Functions
+
+- [Movement Functions](/scripting/player/movement) - Control player physics
+- [setVelocity](/scripting/player/movement#setvelocity) - Set player velocity

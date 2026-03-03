@@ -1,0 +1,278 @@
+---
+title: File System Functions
+description: Functions for reading, writing, and managing files on the server
+icon: folder-open
+---
+
+The file system functions allow you to read from and write to files in the server's game directory. All file operations are restricted to the `fs_homepath` directory for security.
+
+## Opening Files
+
+### fsOpen
+
+Opens a file in the current game directory and returns a file handle.
+
+```gsc
+fileHandle = fsOpen(filename, mode)
+```
+
+<ParamField path="filename" type="string" required>
+  The name of the file to open (relative to the game directory)
+</ParamField>
+
+<ParamField path="mode" type="string" required>
+  The file access mode: `"read"`, `"write"`, or `"append"`
+</ParamField>
+
+<ResponseField name="fileHandle" type="int">
+  Returns a file handle (greater than 0) on success, or 0 on failure
+</ResponseField>
+
+<Note>
+  Files must be closed after use with `fsClose()` to prevent resource leaks.
+</Note>
+
+<CodeGroup>
+```gsc Reading a file
+fh = fsOpen("config.txt", "read");
+if (fh) {
+    line = fsReadLine(fh);
+    iPrintLn("First line: " + line);
+    fsClose(fh);
+}
+```
+
+```gsc Writing to a file
+fh = fsOpen("log.txt", "write");
+if (fh) {
+    fsWriteLine(fh, "Server started at: " + getTime());
+    fsClose(fh);
+}
+```
+
+```gsc Appending to a file
+fh = fsOpen("stats.txt", "append");
+if (fh) {
+    fsWriteLine(fh, player.name + ": " + player.score);
+    fsClose(fh);
+}
+```
+</CodeGroup>
+
+## Reading Files
+
+### fsReadLine
+
+Reads a single line from an opened file.
+
+```gsc
+line = fsReadLine(fileHandle)
+```
+
+<ParamField path="fileHandle" type="int" required>
+  The file handle returned by `fsOpen()`
+</ParamField>
+
+<ResponseField name="line" type="string | undefined">
+  Returns the line as a string (without the trailing `\n`), or `undefined` if at the end of the file or an error occurs
+</ResponseField>
+
+```gsc Example: Reading all lines
+fh = fsOpen("data.txt", "read");
+if (fh) {
+    for (;;) {
+        line = fsReadLine(fh);
+        if (!isDefined(line))
+            break;
+        
+        iPrintLn(line);
+    }
+    fsClose(fh);
+}
+```
+
+## Writing Files
+
+### fsWriteLine
+
+Writes a line to an opened file. Automatically appends a newline character.
+
+```gsc
+success = fsWriteLine(fileHandle, data)
+```
+
+<ParamField path="fileHandle" type="int" required>
+  The file handle returned by `fsOpen()`
+</ParamField>
+
+<ParamField path="data" type="string" required>
+  The string data to write to the file
+</ParamField>
+
+<ResponseField name="success" type="bool">
+  Returns `true` on success, `false` on failure
+</ResponseField>
+
+```gsc Example: Writing multiple lines
+fh = fsOpen("players.txt", "write");
+if (fh) {
+    players = getEntArray("player", "classname");
+    for (i = 0; i < players.size; i++) {
+        fsWriteLine(fh, players[i].name);
+    }
+    fsClose(fh);
+}
+```
+
+## Managing Files
+
+### fsClose
+
+Closes an opened file. Always call this when done with a file.
+
+```gsc
+fsClose(fileHandle)
+```
+
+<ParamField path="fileHandle" type="int" required>
+  The file handle to close
+</ParamField>
+
+<Warning>
+  Failing to close files can lead to resource exhaustion. Always close files in error handling paths as well.
+</Warning>
+
+### fsRemove
+
+Deletes a file from the file system.
+
+```gsc
+success = fsRemove(filename)
+```
+
+<ParamField path="filename" type="string" required>
+  The name of the file to delete
+</ParamField>
+
+<ResponseField name="success" type="bool">
+  Returns `true` if the file was deleted successfully, `false` otherwise
+</ResponseField>
+
+<Warning>
+  You cannot delete a file that is currently open. The function will return `false` and produce an error.
+</Warning>
+
+```gsc Example: Deleting old logs
+if (testFile("old_log.txt")) {
+    success = fsRemove("old_log.txt");
+    if (success)
+        iPrintLn("Old log deleted");
+}
+```
+
+### testFile
+
+Checks if a file exists in the file system.
+
+```gsc
+exists = testFile(filename)
+```
+
+<ParamField path="filename" type="string" required>
+  The name of the file to check
+</ParamField>
+
+<ResponseField name="exists" type="bool">
+  Returns `true` if the file exists, `false` otherwise
+</ResponseField>
+
+```gsc Example: Checking before reading
+if (testFile("config.cfg")) {
+    fh = fsOpen("config.cfg", "read");
+    // ... read config
+    fsClose(fh);
+} else {
+    iPrintLn("Config file not found");
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Close Files" icon="circle-xmark">
+    Use `fsClose()` immediately after you're done with a file to prevent resource leaks.
+  </Card>
+  
+  <Card title="Check File Handles" icon="circle-check">
+    Always verify that `fsOpen()` returned a valid handle before attempting to read or write.
+  </Card>
+  
+  <Card title="Use testFile" icon="magnifying-glass">
+    Check if a file exists before attempting to open it for reading.
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Handle undefined returns from `fsReadLine()` to detect end-of-file conditions.
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+```gsc Example: Player statistics system
+savePlayerStats(player) {
+    filename = "stats/" + player getGuid() + ".txt";
+    
+    fh = fsOpen(filename, "write");
+    if (!fh) {
+        iPrintLn("Failed to save stats for " + player.name);
+        return false;
+    }
+    
+    fsWriteLine(fh, "name:" + player.name);
+    fsWriteLine(fh, "kills:" + player.kills);
+    fsWriteLine(fh, "deaths:" + player.deaths);
+    fsWriteLine(fh, "score:" + player.score);
+    
+    fsClose(fh);
+    return true;
+}
+
+loadPlayerStats(player) {
+    filename = "stats/" + player getGuid() + ".txt";
+    
+    if (!testFile(filename))
+        return false;
+    
+    fh = fsOpen(filename, "read");
+    if (!fh)
+        return false;
+    
+    for (;;) {
+        line = fsReadLine(fh);
+        if (!isDefined(line))
+            break;
+        
+        tokens = strTok(line, ":");
+        if (tokens.size != 2)
+            continue;
+        
+        key = tokens[0];
+        value = tokens[1];
+        
+        switch (key) {
+            case "kills":
+                player.kills = int(value);
+                break;
+            case "deaths":
+                player.deaths = int(value);
+                break;
+            case "score":
+                player.score = int(value);
+                break;
+        }
+    }
+    
+    fsClose(fh);
+    return true;
+}
+```

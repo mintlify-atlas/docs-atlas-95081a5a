@@ -1,0 +1,319 @@
+---
+title: Server Architecture
+description: Understanding the CoD4 Unleashed Server architecture and core components
+---
+
+The CoD4 Unleashed Server is built on a modified Quake 3 engine architecture, with several subsystems working together to provide game server functionality.
+
+## Core Components
+
+The server architecture consists of several major subsystems:
+
+### Server State Management
+
+The server maintains two primary state structures:
+
+<CodeGroup>
+```c server.h:478-530
+typedef struct {
+  serverState_t state;
+  int timeResidual;
+  int frameusec;
+  qboolean restarting;
+  int serverId;
+  int checksumFeed;
+  
+  unsigned short configstringIndex[MAX_CONFIGSTRINGS];
+  svEntity_t svEntities[MAX_GENTITIES];
+  
+  sharedEntity_t* gentities;
+  int gentitySize;
+  int num_entities;
+  
+  playerState_t* gameClients;
+  int gameClientSize;
+  
+  int bpsWindow[MAX_BPS_WINDOW];
+  int bpsWindowSteps;
+  int bpsTotalBytes;
+  int bpsMaxBytes;
+  
+  char gametype[MAX_QPATH];
+} server_t;
+```
+</CodeGroup>
+
+<Note>
+The `server_t` structure (located at `0x13e78d00` in memory) contains per-map state that gets reset on map changes.
+</Note>
+
+### Static Server Data
+
+Persistent data across map changes is stored in `serverStatic_t`:
+
+<CodeGroup>
+```c server.h:375-426
+typedef struct {
+  entityUnknownStr_t entUnknown1[512];
+  archivedEntity_t archivedEntities[16384];
+  
+  qboolean initialized;
+  int time;
+  int snapFlagServerBit;
+  
+  client_t clients[MAX_CLIENTS];
+  
+  int numSnapshotEntities;
+  int numSnapshotClients;
+  int nextSnapshotEntities;
+  int nextSnapshotClients;
+  
+  entityState_t snapshotEntities[0x2A000];
+  clientState_ts snapshotClients[0x20000];
+  
+  int nextHeartbeatTime;
+  challenge2_t challenges[MAX_CHALLENGES];
+  
+  int redirectAddress[5];
+  int authorizeAddress[5];
+  
+  char netProfilingBuf[1504];
+  banlist_t banlist[16];
+  vec3_t mapCenter;
+} serverStatic_t;
+```
+</CodeGroup>
+
+<Info>
+The `serverStatic_t` structure (at `0x8c51780`) persists across map changes and stores client connections, snapshots, and authentication data.
+</Info>
+
+## Client Management
+
+### Client States
+
+Each connected client progresses through several states:
+
+<CodeGroup>
+```c server.h:68-75
+typedef enum {
+  CS_FREE,      // can be reused for a new connection
+  CS_ZOMBIE,    // client disconnected, don't reuse yet
+  CS_CONNECTED, // assigned to client_t, no gamestate yet
+  CS_PRIMED,    // gamestate sent, awaiting usercmd
+  CS_ACTIVE     // client fully in game
+} clientState_t;
+```
+</CodeGroup>
+
+### Client Structure
+
+Each client is represented by a `client_t` structure (size: 0xa563c bytes):
+
+<CodeGroup>
+```c server.h:105-242
+typedef struct client_s {
+  clientState_t state;
+  int deltaMessage;
+  qboolean rateDelayed;
+  netchan_t netchan;
+  
+  // Demo recording
+  fileHandleData_t demofile;
+  qboolean demorecording;
+  char demoName[MAX_QPATH];
+  
+  // Authentication
+  int authentication;
+  qboolean playerauthorized;
+  int uid;
+  char pbguid[33];
+  
+  // Connection info
+  char name[64];
+  char userinfo[MAX_INFO_STRING];
+  
+  // Reliable commands
+  reliableCommands_t reliableCommands[MAX_RELIABLE_COMMANDS];
+  int reliableSequence;
+  int reliableAcknowledge;
+  
+  // Snapshots
+  clientSnapshot_t frames[PACKET_BACKUP];
+  int ping;
+  int rate;
+  int snapshotMsec;
+  
+  // Downloads
+  char downloadName[MAX_QPATH];
+  fileHandle_t download;
+  int downloadSize;
+  int downloadCount;
+  
+  // Network buffers
+  byte unsentBuffer[NETCHAN_UNSENTBUFFER_SIZE];
+  byte fragmentBuffer[NETCHAN_FRAGMENTBUFFER_SIZE];
+} client_t;
+```
+</CodeGroup>
+
+## Frame Processing
+
+The server runs at a configurable frame rate (default 20 fps, controlled by `sv_fps`):
+
+<Accordion title="Server Frame Loop">
+
+1. **SV_Frame** (sv_main.c) - Main server frame function
+   - Processes network packets
+   - Runs game simulation
+   - Sends snapshots to clients
+
+2. **SV_PreFrame** - Pre-frame processing
+   - Updates server time
+   - Processes pending commands
+
+3. **Game Frame** - Runs game logic
+   - Player movement
+   - Entity updates
+   - Physics simulation
+
+4. **SV_SendClientMessages** - Sends updates to clients
+   - Builds snapshots
+   - Transmits reliable commands
+   - Handles packet fragmentation
+
+</Accordion>
+
+### Frame Timing
+
+The server maintains consistent timing through frame accumulation:
+
+<CodeGroup>
+```c sv_main.c:2146
+// Frame timing is calculated based on sv_fps
+frameusec = 1000000 / sv_fps->integer;
+timeResidual += usec;
+
+while (timeResidual >= frameusec) {
+  timeResidual -= frameusec;
+  // Process server frame
+}
+```
+</CodeGroup>
+
+## Entity System
+
+### Server Entities
+
+The server maintains `svEntity_t` structures for tracking entity state:
+
+<CodeGroup>
+```c server.h:462-472
+typedef struct svEntity_s {
+  struct svEntity_s* nextEntityInWorldSector;
+  
+  entityState_t baseline;  // For delta compression
+  int numClusters;
+  int clusternums[MAX_ENT_CLUSTERS];
+  int lastCluster;
+  int areanum, areanum2;
+  int snapshotCounter;  // Prevent double adding
+} svEntity_t;
+```
+</CodeGroup>
+
+<Warning>
+The server supports up to `MAX_GENTITIES` (2048) entities simultaneously. Entity numbers 0-63 are reserved for clients.
+</Warning>
+
+## Snapshot System
+
+### Entity Snapshots
+
+The server maintains a circular buffer of entity states for delta compression:
+
+- **snapshotEntities**: Array of 172,032 entity states
+- **nextSnapshotEntities**: Index of next available snapshot slot
+- **numSnapshotEntities**: Total number of snapshot entities available
+
+### Client Snapshots
+
+Each client stores up to `PACKET_BACKUP` (32) frames:
+
+<CodeGroup>
+```c server.h:78-92
+typedef struct {
+  playerState_t ps;
+  int num_entities;
+  int num_clients;
+  int first_entity;
+  int first_client;
+  
+  unsigned int messageSent;
+  unsigned int messageAcked;
+  int messageSize;
+} clientSnapshot_t;
+```
+</CodeGroup>
+
+## Rate Limiting
+
+The server implements query rate limiting to prevent DoS attacks:
+
+<CodeGroup>
+```c sv_main.c:443-453
+typedef struct {
+  int max_buckets;
+  int max_hashes;
+  leakyBucket_t* buckets;
+  leakyBucket_t** bucketHashes;
+  int queryLimitsEnabled;
+  leakyBucket_t infoBucket;
+  leakyBucket_t statusBucket;
+  leakyBucket_t rconBucket;
+} queryLimit_t;
+```
+</CodeGroup>
+
+<Info>
+Rate limiting uses a leaky bucket algorithm configured via `sv_queryIgnoreMegs` and `sv_queryIgnoreTime` cvars.
+</Info>
+
+## Thread Safety
+
+The server is primarily single-threaded with critical sections for:
+
+- Network I/O operations
+- Console output buffering
+- File system operations
+- Plugin callbacks
+
+<Warning>
+While some operations use critical sections, the server is **not** fully thread-safe. Plugin developers should be cautious when using threads.
+</Warning>
+
+## Memory Layout
+
+Key structures are located at fixed memory addresses:
+
+| Structure | Address | Description |
+|-----------|---------|-------------|
+| `server_t` | 0x13e78d00 | Current server state |
+| `serverStatic_t` | 0x8c51780 | Static server data |
+| `svsHeader_t` | 0x13f18f80 | Server header info |
+| `client_t[MAX_CLIENTS]` | 0x90b4f8c | Client array |
+
+<Note>
+These memory addresses are specific to the Linux x86 binary. Other platforms may differ.
+</Note>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Configuration System" href="/concepts/configuration">
+    Learn about cvars and config files
+  </Card>
+  <Card title="Networking" href="/concepts/networking">
+    Understand network architecture
+  </Card>
+</CardGroup>

@@ -1,0 +1,456 @@
+---
+title: Bot Management Functions
+description: Functions for spawning, managing, and removing bots and clients
+icon: robot
+---
+
+Bot management functions allow you to programmatically add test clients (bots) to your server, as well as kick and ban real players.
+
+## Bot Functions
+
+### spawnBot
+
+Spawns a bot (test client) on the server.
+
+```gsc
+bot = spawnBot()
+```
+
+<ResponseField name="bot" type="entity">
+  Returns the bot entity if successful, `undefined` otherwise
+</ResponseField>
+
+<Info>
+  Bots are simulated clients that can be used for testing game modes, debugging player interactions, or filling empty server slots.
+</Info>
+
+```gsc Example: Spawning bots
+bot = spawnBot();
+if (isDefined(bot)) {
+    bot.name = "TestBot";
+    iPrintLn("Bot spawned: " + bot.name);
+}
+```
+
+```gsc Example: Spawning multiple bots
+spawnMultipleBots(count) {
+    bots = [];
+    for (i = 0; i < count; i++) {
+        bot = spawnBot();
+        if (isDefined(bot)) {
+            bot.name = "Bot_" + (i + 1);
+            bots[bots.size] = bot;
+        }
+    }
+    return bots;
+}
+
+// Spawn 5 bots
+bots = spawnMultipleBots(5);
+iPrintLn("Spawned " + bots.size + " bots");
+```
+
+### removeBot
+
+Removes one bot from the server.
+
+```gsc
+removedBot = removeBot()
+```
+
+<ResponseField name="removedBot" type="entity">
+  Returns the entity of the bot that was removed, or `undefined` if no bots exist
+</ResponseField>
+
+<Note>
+  This function removes the first available bot it finds. It does not target a specific bot.
+</Note>
+
+```gsc Example
+bot = removeBot();
+if (isDefined(bot)) {
+    iPrintLn("Removed bot: " + bot.name);
+} else {
+    iPrintLn("No bots to remove");
+}
+```
+
+### removeAllBots
+
+Removes all bots from the server.
+
+```gsc
+removeAllBots()
+```
+
+```gsc Example: Clearing all bots
+iPrintLn("Removing all bots...");
+removeAllBots();
+iPrintLn("All bots removed");
+```
+
+```gsc Example: Bot auto-balance
+autoBalanceServer() {
+    players = getEntArray("player", "classname");
+    
+    // Count real players (non-bots)
+    realPlayers = 0;
+    for (i = 0; i < players.size; i++) {
+        if (!players[i] isTestClient()) {
+            realPlayers++;
+        }
+    }
+    
+    minPlayers = 8;
+    botsNeeded = minPlayers - realPlayers;
+    
+    if (botsNeeded > 0) {
+        // Add bots
+        for (i = 0; i < botsNeeded; i++) {
+            spawnBot();
+        }
+        iPrintLn("Added " + botsNeeded + " bots");
+    } else if (botsNeeded < 0) {
+        // Remove excess bots
+        for (i = 0; i < abs(botsNeeded); i++) {
+            removeBot();
+        }
+        iPrintLn("Removed " + abs(botsNeeded) + " bots");
+    }
+}
+```
+
+## Client Management
+
+### kickClient
+
+Kicks a player from the server.
+
+```gsc
+kickClient(clientId)
+```
+
+<ParamField path="clientId" type="int" required>
+  The client ID (entity number) of the player to kick. Must be between 0 and `sv_maxclients - 1`
+</ParamField>
+
+<Warning>
+  This function will cause a script error if the client ID is out of range.
+</Warning>
+
+```gsc Example: Kicking a player
+players = getEntArray("player", "classname");
+for (i = 0; i < players.size; i++) {
+    if (players[i].name == "BadPlayer") {
+        clientId = players[i] getEntityNumber();
+        kickClient(clientId);
+        iPrintLn("Kicked: " + players[i].name);
+        break;
+    }
+}
+```
+
+```gsc Example: Kick command
+onPlayerCommand(player, command, args) {
+    if (command == "kick" && player.adminLevel >= 50) {
+        if (args.size < 1) {
+            player iPrintLn("Usage: !kick <player name>");
+            return;
+        }
+        
+        targetName = args[0];
+        players = getEntArray("player", "classname");
+        
+        for (i = 0; i < players.size; i++) {
+            if (isSubStr(toLower(players[i].name), toLower(targetName))) {
+                clientId = players[i] getEntityNumber();
+                kickedName = players[i].name;
+                
+                kickClient(clientId);
+                iPrintLnBold(kickedName + " was kicked by " + player.name);
+                return;
+            }
+        }
+        
+        player iPrintLn("Player not found: " + targetName);
+    }
+}
+```
+
+### banClient
+
+Bans a player from the server permanently.
+
+```gsc
+banClient(clientId)
+```
+
+<ParamField path="clientId" type="int" required>
+  The client ID (entity number) of the player to ban. Must be between 0 and `sv_maxclients - 1`
+</ParamField>
+
+<Warning>
+  This creates a permanent ban entry. The ban reason will be "Banned by scriptadmin". If the server uses UIDs, the player is banned by UID; otherwise, they are banned by GUID (last 24 characters of PunkBuster GUID).
+</Warning>
+
+<Note>
+  If the player does not have a valid UID (when UID system is enabled), they will be kicked instead of banned.
+</Note>
+
+```gsc Example: Banning a cheater
+banCheater(player) {
+    clientId = player getEntityNumber();
+    playerName = player.name;
+    playerGuid = player getGuid();
+    
+    iPrintLnBold("Cheater detected: " + playerName);
+    iPrintLn("GUID: " + playerGuid);
+    
+    banClient(clientId);
+    
+    // Log the ban
+    fh = fsOpen("bans.log", "append");
+    if (fh) {
+        time = getEpochTime();
+        timeStr = epochTimeToString(time, 0, "%Y-%m-%d %H:%M:%S");
+        logEntry = timeStr + " | " + playerName + " | " + playerGuid + " | Cheating detected";
+        fsWriteLine(fh, logEntry);
+        fsClose(fh);
+    }
+}
+```
+
+```gsc Example: Ban command
+onPlayerCommand(player, command, args) {
+    if (command == "ban" && player.adminLevel >= 80) {
+        if (args.size < 1) {
+            player iPrintLn("Usage: !ban <player name>");
+            return;
+        }
+        
+        targetName = args[0];
+        players = getEntArray("player", "classname");
+        
+        for (i = 0; i < players.size; i++) {
+            if (isSubStr(toLower(players[i].name), toLower(targetName))) {
+                clientId = players[i] getEntityNumber();
+                bannedName = players[i].name;
+                bannedGuid = players[i] getGuid();
+                
+                banClient(clientId);
+                iPrintLnBold(bannedName + " was banned by " + player.name);
+                
+                // Notify admins
+                logAdmin("BAN: " + bannedName + " (" + bannedGuid + ") by " + player.name);
+                return;
+            }
+        }
+        
+        player iPrintLn("Player not found: " + targetName);
+    }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Validate Client IDs" icon="check">
+    Always validate that client IDs are within the valid range (0 to `sv_maxclients - 1`) before calling kick or ban functions.
+  </Card>
+  
+  <Card title="Log Admin Actions" icon="file-lines">
+    Keep a log of all kick and ban actions for server administration and dispute resolution.
+  </Card>
+  
+  <Card title="Bot Limits" icon="users">
+    Monitor the number of bots to avoid filling up server slots and preventing real players from joining.
+  </Card>
+  
+  <Card title="Confirm Ban Actions" icon="triangle-exclamation">
+    Bans are permanent. Consider implementing a confirmation system for ban commands.
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+```gsc Example: Comprehensive bot and player management system
+init() {
+    level.minPlayers = 4;
+    level.maxBots = 16;
+    
+    level thread monitorBots();
+    level thread setupAdminCommands();
+}
+
+monitorBots() {
+    level endon("game_ended");
+    
+    for (;;) {
+        wait 5;
+        
+        players = getEntArray("player", "classname");
+        realPlayers = 0;
+        botCount = 0;
+        
+        for (i = 0; i < players.size; i++) {
+            if (players[i] isTestClient()) {
+                botCount++;
+            } else {
+                realPlayers++;
+            }
+        }
+        
+        // Auto-balance logic
+        if (realPlayers < level.minPlayers) {
+            botsNeeded = level.minPlayers - realPlayers;
+            botsToAdd = min(botsNeeded, level.maxBots - botCount);
+            
+            for (i = 0; i < botsToAdd; i++) {
+                bot = spawnBot();
+                if (isDefined(bot)) {
+                    bot setupBot();
+                }
+            }
+        } else if (botCount > 0 && realPlayers > level.minPlayers) {
+            // Remove bots when real players join
+            botsToRemove = min(botCount, realPlayers - level.minPlayers);
+            for (i = 0; i < botsToRemove; i++) {
+                removeBot();
+            }
+        }
+    }
+}
+
+setupBot() {
+    self endon("disconnect");
+    
+    // Assign bot name
+    botNames = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"];
+    self.name = "Bot_" + botNames[randomInt(botNames.size)];
+    
+    // Bot behavior can be customized here
+    self.isBot = true;
+}
+
+setupAdminCommands() {
+    // Command handlers would be registered here
+    level thread commandListener();
+}
+
+commandListener() {
+    level endon("game_ended");
+    
+    for (;;) {
+        level waittill("player_command", player, command, args);
+        
+        if (!isDefined(player.adminLevel)) {
+            player.adminLevel = 0;
+        }
+        
+        switch (command) {
+            case "addbot":
+                if (player.adminLevel >= 20) {
+                    bot = spawnBot();
+                    if (isDefined(bot)) {
+                        iPrintLn("Bot added by " + player.name);
+                    }
+                }
+                break;
+                
+            case "removebot":
+                if (player.adminLevel >= 20) {
+                    bot = removeBot();
+                    if (isDefined(bot)) {
+                        iPrintLn("Bot removed by " + player.name);
+                    }
+                }
+                break;
+                
+            case "removebots":
+                if (player.adminLevel >= 20) {
+                    removeAllBots();
+                    iPrintLn("All bots removed by " + player.name);
+                }
+                break;
+                
+            case "kick":
+                if (player.adminLevel >= 50 && args.size > 0) {
+                    kickPlayerByName(player, args[0]);
+                }
+                break;
+                
+            case "ban":
+                if (player.adminLevel >= 80 && args.size > 0) {
+                    banPlayerByName(player, args[0]);
+                }
+                break;
+        }
+    }
+}
+
+kickPlayerByName(admin, targetName) {
+    players = getEntArray("player", "classname");
+    
+    for (i = 0; i < players.size; i++) {
+        if (isSubStr(toLower(players[i].name), toLower(targetName))) {
+            if (players[i] isTestClient()) {
+                admin iPrintLn("Cannot kick bots. Use !removebot instead.");
+                return;
+            }
+            
+            clientId = players[i] getEntityNumber();
+            kickedName = players[i].name;
+            
+            kickClient(clientId);
+            iPrintLnBold(kickedName + " was kicked by " + admin.name);
+            
+            logAdminAction("KICK", admin, players[i]);
+            return;
+        }
+    }
+    
+    admin iPrintLn("Player not found: " + targetName);
+}
+
+banPlayerByName(admin, targetName) {
+    players = getEntArray("player", "classname");
+    
+    for (i = 0; i < players.size; i++) {
+        if (isSubStr(toLower(players[i].name), toLower(targetName))) {
+            if (players[i] isTestClient()) {
+                admin iPrintLn("Cannot ban bots.");
+                return;
+            }
+            
+            clientId = players[i] getEntityNumber();
+            bannedName = players[i].name;
+            bannedGuid = players[i] getGuid();
+            
+            banClient(clientId);
+            iPrintLnBold(bannedName + " was BANNED by " + admin.name);
+            
+            logAdminAction("BAN", admin, players[i]);
+            return;
+        }
+    }
+    
+    admin iPrintLn("Player not found: " + targetName);
+}
+
+logAdminAction(action, admin, target) {
+    fh = fsOpen("admin_actions.log", "append");
+    if (!fh)
+        return;
+    
+    time = getEpochTime();
+    timeStr = epochTimeToString(time, 0, "%Y-%m-%d %H:%M:%S");
+    
+    logEntry = timeStr + " | ";
+    logEntry += action + " | ";
+    logEntry += "Admin: " + admin.name + " (" + admin getGuid() + ") | ";
+    logEntry += "Target: " + target.name + " (" + target getGuid() + ")";
+    
+    fsWriteLine(fh, logEntry);
+    fsClose(fh);
+}
+```

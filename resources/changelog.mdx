@@ -1,0 +1,559 @@
+---
+title: Changelog
+description: Version history and notable changes to CoD4 Unleashed Server
+---
+
+## Overview
+
+This changelog documents all notable changes to the CoD4 Unleashed Server project. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+<Note>
+For the most up-to-date changelog, see [CHANGELOG.md](https://github.com/atrX/CoD4-Unleashed-Server/blob/master/CHANGELOG.md) in the repository.
+</Note>
+
+## Unreleased
+
+Current development version with the following additions:
+
+### Added
+
+<AccordionGroup>
+
+<Accordion title="Secondary protocol version to support 1.8 Steam patch">
+
+CoD4 Unleashed now supports both the original 1.7 client protocol and the newer 1.8 Steam protocol:
+
+- Players using CoD4 1.7 can connect
+- Players using CoD4 1.8 (Steam version) can connect  
+- Server automatically detects client protocol version
+- Both versions can play on the same server simultaneously
+
+**Benefits:**
+- Larger player base (both Steam and non-Steam players)
+- Future-proof for Steam client updates
+- No need to run separate servers
+
+</Accordion>
+
+<Accordion title="getProtocol function to retrieve player protocol">
+
+New GSC function to detect which protocol version a player is using:
+
+```gsc
+OnPlayerConnect()
+{
+    protocol = self getProtocol();
+    
+    if (protocol == 6)
+    {
+        self iPrintLn("You are using CoD4 1.7");
+    }
+    else if (protocol == 7)
+    {
+        self iPrintLn("You are using CoD4 1.8 Steam");
+    }
+}
+```
+
+**Use cases:**
+- Display different messages based on client version
+- Track player client distribution
+- Apply version-specific workarounds
+- Server statistics and analytics
+
+</Accordion>
+
+<Accordion title="HTTPS support (using libcurl)">
+
+Full HTTPS support for secure web requests:
+
+```gsc
+// Make HTTPS requests from GSC
+response = httpGet("https://api.example.com/data");
+```
+
+**Features:**
+- SSL/TLS certificate validation
+- Supports modern HTTPS sites
+- Required for most modern APIs
+- Uses libcurl for robust implementation
+
+**Requirements:**
+- libcurl must be compiled with SSL support
+- OpenSSL libraries required (Windows: install Win32 OpenSSL)
+
+</Accordion>
+
+<Accordion title="New FPS related functions">
+
+Enhanced FPS monitoring and lag detection:
+
+### getCountedFps()
+
+More accurate FPS measurement that properly detects lag spikes:
+
+```gsc
+fps = getCountedFps();
+
+// More reliable than old getFps()
+// Detects temporary lag spikes
+// Better for performance monitoring
+```
+
+### isLagging()
+
+Detect when server is experiencing lag:
+
+```gsc
+if (isLagging())
+{
+    logPrint("WARNING: Server is lagging!\n");
+    // Take action: reduce load, notify admins, etc.
+}
+```
+
+**Benefits:**
+- Real-time performance monitoring
+- Automatic lag detection
+- Better than manual FPS thresholds
+- Helps identify performance issues
+
+**Example usage:**
+
+```gsc
+monitorPerformance()
+{
+    level endon("game_ended");
+    
+    while (true)
+    {
+        wait 5;
+        
+        fps = getCountedFps();
+        
+        if (isLagging())
+        {
+            // Server is lagging
+            logPrint("Server FPS: " + fps + " (LAGGING)\n");
+            
+            // Maybe reduce some load
+            level.reduceParticles = true;
+        }
+        else
+        {
+            level.reduceParticles = false;
+        }
+    }
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Version 1.1.1 (Hotfix) - 2019-03-09
+
+<Note>
+Hotfix release addressing JSON parsing issues.
+</Note>
+
+### Fixed
+
+<Accordion title="Fixed JSON module not parsing booleans properly">
+
+**Issue:** The JSON parser was incorrectly handling boolean values (`true` and `false`).
+
+**Fix:** Boolean values now parse correctly in JSON strings:
+
+```gsc
+// Before fix (1.1.0): booleans didn't parse correctly
+jsonStr = "{\"enabled\": true, \"disabled\": false}";
+data = jsonParse(jsonStr);
+// data.enabled and data.disabled were undefined/incorrect
+
+// After fix (1.1.1): works properly
+data = jsonParse(jsonStr);
+if (data.enabled)
+    iPrintLnBold("Feature is enabled!");
+```
+
+**Affected users:** Anyone using JSON module with boolean values should update to 1.1.1.
+
+</Accordion>
+
+---
+
+## Version 1.1.0 - 2019-03-09
+
+<Note>
+Major release with HTTP 1.1 support, JSON functionality, and project rename.
+</Note>
+
+### Added
+
+<AccordionGroup>
+
+<Accordion title="Full support for HTTP 1.1">
+
+Complete HTTP 1.1 protocol implementation:
+
+**Features:**
+- Persistent connections (keep-alive)
+- Chunked transfer encoding
+- Better performance for multiple requests
+- Modern HTTP/1.1 compliant
+
+**Usage:**
+```gsc
+// Uses HTTP 1.1 automatically
+response = httpGet("http://example.com/api");
+```
+
+**Benefits:**
+- Faster API calls
+- Support for modern web services
+- Better compatibility with CDNs
+- Reduced connection overhead
+
+</Accordion>
+
+<Accordion title="JSON support (GSC module)">
+
+Native JSON parsing and generation in GSC scripts:
+
+**Module location:** `unleashed\json` in `bin/` directory
+
+**Usage:**
+
+```gsc
+#include unleashed\json;
+
+// Parse JSON from API response
+response = httpGet("http://api.example.com/players");
+data = jsonParse(response);
+
+if (isDefined(data))
+{
+    playerName = data.name;
+    playerScore = data.score;
+    
+    // Access nested objects
+    if (isDefined(data.stats))
+    {
+        kills = data.stats.kills;
+        deaths = data.stats.deaths;
+    }
+}
+
+// Generate JSON
+jsonStr = jsonStringify(myDataStructure);
+```
+
+**Supported types:**
+- Strings
+- Numbers  
+- Booleans (fixed in 1.1.1)
+- Objects
+- Arrays
+- Null values
+
+</Accordion>
+
+<Accordion title="isArray function">
+
+Check if a variable is an array:
+
+```gsc
+if (isArray(myVar))
+{
+    // It's an array, safe to iterate
+    for (i = 0; i < myVar.size; i++)
+    {
+        // Process array elements
+    }
+}
+else
+{
+    // Not an array
+}
+```
+
+**Use cases:**
+- Prevent errors when iterating
+- Validate function parameters
+- Dynamic type checking
+- Safer array operations
+
+</Accordion>
+
+<Accordion title="getEpochTime and epochTimeToString">
+
+Unix timestamp functions for time handling:
+
+### getEpochTime()
+
+Get current Unix timestamp (seconds since Jan 1, 1970):
+
+```gsc
+timestamp = getEpochTime();
+// Returns: 1552147200 (example)
+
+// Use for:
+// - Time-based events
+// - Session tracking
+// - Cooldown timers
+// - Database timestamps
+```
+
+### epochTimeToString()
+
+Convert timestamp to readable string:
+
+```gsc
+timestamp = getEpochTime();
+timeStr = epochTimeToString(timestamp);
+// Returns: "2019-03-09 12:00:00" (example)
+
+iPrintLn("Server time: " + timeStr);
+```
+
+**Example: Cooldown system**
+
+```gsc
+setCooldown(player, ability, seconds)
+{
+    if (!isDefined(player.cooldowns))
+        player.cooldowns = [];
+    
+    player.cooldowns[ability] = getEpochTime() + seconds;
+}
+
+checkCooldown(player, ability)
+{
+    if (!isDefined(player.cooldowns[ability]))
+        return true; // Not on cooldown
+    
+    currentTime = getEpochTime();
+    
+    if (currentTime >= player.cooldowns[ability])
+    {
+        player.cooldowns[ability] = undefined;
+        return true; // Cooldown expired
+    }
+    
+    remaining = player.cooldowns[ability] - currentTime;
+    player iPrintLn("Cooldown: " + remaining + " seconds");
+    return false; // Still on cooldown
+}
+```
+
+</Accordion>
+
+<Accordion title="setSpectatedClient">
+
+Force a player to spectate a specific client:
+
+```gsc
+// Make player1 spectate player2
+player1 setSpectatedClient(player2);
+
+// Use cases:
+// - Custom spectator modes
+// - Admin overview tools
+// - Tournament spectating
+// - Kill cams
+// - Coaching systems
+```
+
+**Example: Admin spectate command**
+
+```gsc
+adminSpectate(admin, targetName)
+{
+    target = findPlayerByName(targetName);
+    
+    if (!isDefined(target))
+    {
+        admin iPrintLn("Player not found");
+        return;
+    }
+    
+    // Put admin in spectator
+    admin [[game["allies"]]](); // Join spectator team
+    wait 0.5;
+    
+    // Force spectate target
+    admin setSpectatedClient(target);
+    admin iPrintLn("Now spectating: " + target.name);
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+### Changed
+
+<AccordionGroup>
+
+<Accordion title="Project renamed to CoD4: Unleashed">
+
+**Previous name:** CoD4X Server (unofficial)
+
+**New name:** CoD4: Unleashed
+
+**Reasons for rename:**
+- Avoid confusion with other projects
+- Establish unique identity
+- Better branding
+- Clear distinction from stock CoD4
+
+**Impact:**
+- Binary names changed to `cod4u_*`
+- Documentation updated
+- URLs and references updated
+- No functional changes
+
+</Accordion>
+
+<Accordion title="Updated compile info">
+
+Improved build system:
+- Better compiler flags
+- Updated documentation
+- Cleaner build scripts
+- Better Windows support
+
+</Accordion>
+
+<Accordion title="Deprecated httpPostRequest">
+
+**Old function:** `httpPostRequest()` (deprecated)
+
+**New function:** `httpPost()` (recommended)
+
+```gsc
+// OLD (still works but deprecated)
+response = httpPostRequest(url, data);
+
+// NEW (recommended)
+response = httpPost(url, data);
+```
+
+**Why deprecated:**
+- Inconsistent naming
+- HTTP 1.1 support in new function
+- Better parameter handling
+- More features
+
+<Warning>
+While `httpPostRequest()` still works for backward compatibility, new code should use `httpPost()`.
+</Warning>
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Version 1.0 - 2016-08-13
+
+<Note>
+Initial release of CoD4 Unleashed Server.
+</Note>
+
+First public release featuring:
+
+- Custom dedicated server improvements
+- Enhanced functionality over stock CoD4 server
+- Plugin API support
+- Extended scripting functions
+- Improved performance and stability
+- Linux and Windows support
+
+---
+
+## Upgrade Guide
+
+### From 1.1.0 to 1.1.1
+
+<Steps>
+
+<Step title="Download new version">
+Download version 1.1.1 binary or compile from source.
+</Step>
+
+<Step title="Replace binary">
+Replace `cod4u_lnx` or `cod4u_win32.exe` with new version.
+</Step>
+
+<Step title="Test JSON booleans">
+If you use JSON with boolean values, test that they parse correctly now.
+</Step>
+
+</Steps>
+
+### From 1.0 to 1.1.0
+
+<Steps>
+
+<Step title="Backup current server">
+Backup your entire server directory before upgrading.
+</Step>
+
+<Step title="Install new binary">
+Download and install version 1.1.0.
+</Step>
+
+<Step title="Update scripts">
+If you use `httpPostRequest()`, consider updating to `httpPost()` (optional, old function still works).
+</Step>
+
+<Step title="Add JSON module">
+Copy the `unleashed\json` module from the new `bin/` directory if you want to use JSON features.
+</Step>
+
+<Step title="Test thoroughly">
+Test all your custom mods and plugins with the new version.
+</Step>
+
+</Steps>
+
+## Version Links
+
+<CardGroup cols={2}>
+
+<Card title="Unreleased" icon="code-branch" href="https://github.com/atrX/CoD4-Unleashed-Server/compare/1.1.1...HEAD">
+  View unreleased changes on GitHub
+</Card>
+
+<Card title="Version 1.1.1" icon="tag" href="https://github.com/atrX/CoD4-Unleashed-Server/releases/tag/1.1.1">
+  Download v1.1.1 release
+</Card>
+
+<Card title="Version 1.1.0" icon="tag" href="https://github.com/atrX/CoD4-Unleashed-Server/releases/tag/1.1.0">
+  Download v1.1.0 release
+</Card>
+
+<Card title="Version 1.0" icon="tag" href="https://github.com/atrX/CoD4-Unleashed-Server/releases/tag/1.0">
+  Download v1.0 release
+</Card>
+
+</CardGroup>
+
+## Release Schedule
+
+CoD4 Unleashed follows semantic versioning:
+
+- **Major versions** (x.0.0): Breaking changes, major features
+- **Minor versions** (1.x.0): New features, backward compatible
+- **Patch versions** (1.1.x): Bug fixes, no new features
+
+<Tip>
+To stay updated on new releases:
+- Watch the GitHub repository
+- Join the community forum
+- Check the releases page regularly
+</Tip>

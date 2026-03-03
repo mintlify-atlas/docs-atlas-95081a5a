@@ -1,0 +1,776 @@
+---
+title: Networking Architecture
+description: Understanding the CoD4 server networking system, protocols, and packet handling
+---
+
+The CoD4 Unleashed Server uses a sophisticated networking architecture based on the Quake 3 engine, with UDP for game traffic and TCP for administrative connections.
+
+## Network Transport
+
+### UDP Game Protocol
+
+The primary game protocol uses UDP for low-latency communication:
+
+<CodeGroup>
+```c netchan.h:100-118
+typedef struct netchan_s {
+  netsrc_t sock;
+  netadr_t remoteAddress;
+  unsigned int qport;
+  
+  int incomingSequence;
+  int outgoingSequence;
+  
+  int dropped;
+  int fragmentSequence;
+  int fragmentLength;
+  
+  byte* unsentBuffer;
+  int unsentBufferSize;
+  qboolean unsentFragments;
+  int unsentLength;
+  int unsentFragmentStart;
+  
+  byte* fragmentBuffer;
+  int fragmentBufferSize;
+} netchan_t;
+```
+</CodeGroup>
+
+<Info>
+UDP is chosen for game traffic because low latency is more important than guaranteed delivery. Missing packets are handled through delta compression.
+</Info>
+
+### TCP Administrative Protocol
+
+TCP connections are used for:
+
+- RCON (remote console) access
+- File downloads (optional)
+- Status queries
+- Statistics submission
+
+<CodeGroup>
+```c sys_net.c:232-256
+#define MAX_TCPCONNECTIONS 120
+#define MIN_TCPAUTHWAITTIME 320
+#define MAX_TCPAUTHWAITTIME 3000
+#define MAX_TCPCONNECTEDTIMEOUT 1800000  // 30 minutes
+
+typedef struct {
+  netadr_t remote;
+  unsigned int lastMsgTime;
+  int connectionId;
+  int serviceId;
+  tcpclientstate_t state;
+} tcpConnections_t;
+
+typedef struct {
+  fd_set fdr;
+  int highestfd;
+  int activeConnectionCount;
+  unsigned long long lastAttackWarnTime;
+  tcpConnections_t connections[MAX_TCPCONNECTIONS];
+} tcpServer_t;
+```
+</CodeGroup>
+
+## Network Addresses
+
+### Address Types
+
+<CodeGroup>
+```c sys_net.h:30-38
+typedef enum {
+  NA_BAD,          // Invalid address
+  NA_LOOPBACK,     // Loopback (127.0.0.1)
+  NA_BROADCAST,    // Broadcast address
+  NA_IP,           // IPv4 UDP
+  NA_IP6,          // IPv6 UDP
+  NA_TCP,          // IPv4 TCP
+  NA_TCP6,         // IPv6 TCP
+  NA_MULTICAST6,   // IPv6 multicast
+  NA_BOT           // Bot (no network)
+} netadrtype_t;
+```
+</CodeGroup>
+
+### Address Structure
+
+<CodeGroup>
+```c sys_net.h:40-50
+typedef struct {
+  netadrtype_t type;
+  union {
+    byte ip[4];      // IPv4 address
+    byte ip6[16];    // IPv6 address
+  };
+  unsigned short port;
+  unsigned long scope_id;  // IPv6 scope
+  int sock;               // Socket descriptor
+} netadr_t;
+```
+</CodeGroup>
+
+<Accordion title="Address String Formats">
+
+**IPv4 Examples:**
+- `192.168.1.100:28960` - Standard IPv4 with port
+- `192.168.1.x:28960` - Masked address (last octet hidden)
+- `loopback` - Local loopback
+
+**IPv6 Examples:**
+- `[2001:db8::1]:28960` - IPv6 with port
+- `[fe80::1%eth0]:28960` - Link-local with interface
+
+</Accordion>
+
+## Socket Management
+
+### Opening Sockets
+
+The server opens both IPv4 and IPv6 sockets:
+
+<CodeGroup>
+```c sys_net.c:1799-1862
+void NET_OpenIP(void) {
+  int port = net_port->integer;
+  int port6 = net_port6->integer;
+  
+  if (port == 0) {
+    port = PORT_SERVER;  // Default 28960
+  }
+  
+  // Open IPv4 sockets
+  if (net_enabled->integer & NET_ENABLEV4) {
+    for (i = 0; i < numIP; i++) {
+      if (localIP[i].type == NA_IP) {
+        ip_socket[i].sock = NET_IPSocket(
+          net_ip->string, 
+          port, 
+          &err, 
+          qfalse  // UDP
+        );
+      }
+    }
+  }
+  
+  // Open IPv6 sockets
+  if (net_enabled->integer & NET_ENABLEV6) {
+    for (i = 0; i < numIP; i++) {
+      if (localIP[i].type == NA_IP6) {
+        ip_socket[i].sock = NET_IP6Socket(
+          net_ip6->string,
+          port6,
+          &boundto,
+          &err,
+          qfalse  // UDP
+        );
+      }
+    }
+  }
+}
+```
+</CodeGroup>
+
+### Socket Options
+
+<CodeGroup>
+```c sys_net.c:1112-1150
+// Make socket non-blocking
+ioctlsocket(newsocket, FIONBIO, &_true);
+
+// Enable broadcast (UDP only)
+setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, &i, sizeof(i));
+
+// Set IP Type of Service (QoS)
+int tos = IPEFF_EF;  // 0xB8 - Expedited Forwarding
+setsockopt(newsocket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+
+// Enable address reuse (TCP)
+int reuse = 1;
+setsockopt(newsocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+// IPv6 only (no IPv4-mapped)
+setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, &i, sizeof(i));
+```
+</CodeGroup>
+
+<Note>
+The server sets TOS to Expedited Forwarding (0xB8) to request priority handling from routers.
+</Note>
+
+## Packet Structure
+
+### Packet Header
+
+<CodeGroup>
+```c netchan.c:38-59
+/*
+Packet header:
+-------------
+4 bytes - outgoing sequence (high bit = fragmented)
+[2 bytes - qport (client to server only)]
+[4 bytes - fragment start byte]
+[2 bytes - fragment length]
+
+If sequence is -1, packet is out-of-band.
+*/
+
+#define PACKET_HEADER 10
+#define FRAGMENT_BIT (1 << 31)
+#define FRAGMENT_SIZE 1248
+```
+</CodeGroup>
+
+### Packet Flow
+
+<Steps>
+  <Step title="Sequence Number">
+    4-byte sequence number for ordering
+    - High bit indicates fragmentation
+    - -1 (0xFFFFFFFF) for out-of-band packets
+  </Step>
+  
+  <Step title="QPort (Client → Server)">
+    2-byte client identifier
+    - Helps identify client behind NAT
+    - Allows port remapping detection
+  </Step>
+  
+  <Step title="Fragment Info (if fragmented)">
+    - 4 bytes: fragment start offset
+    - 2 bytes: fragment length
+    - Last fragment has length < FRAGMENT_SIZE
+  </Step>
+  
+  <Step title="Payload">
+    Actual message data
+    - Commands, entity states, player input
+    - Huffman compressed (optional)
+  </Step>
+</Steps>
+
+## Netchan (Network Channel)
+
+### Initialization
+
+<CodeGroup>
+```c netchan.c:95-118
+void Netchan_Setup(
+  netsrc_t sock,
+  netchan_t* chan,
+  netadr_t adr,
+  unsigned int qport,
+  byte* unsentBuffer,
+  int unsentBufferSize,
+  byte* fragmentBuffer,
+  int fragmentBufferSize
+) {
+  memset(chan, 0, sizeof(netchan_t));
+  
+  chan->sock = sock;
+  chan->remoteAddress = adr;
+  chan->qport = qport;
+  chan->incomingSequence = 0;
+  chan->outgoingSequence = 1;
+  chan->unsentBuffer = unsentBuffer;
+  chan->unsentBufferSize = unsentBufferSize;
+  chan->fragmentBuffer = fragmentBuffer;
+  chan->fragmentBufferSize = fragmentBufferSize;
+}
+```
+</CodeGroup>
+
+### Packet Processing
+
+<CodeGroup>
+```c netchan.c:132-278
+qboolean Netchan_Process(netchan_t* chan, msg_t* msg) {
+  int sequence;
+  qboolean fragmented;
+  
+  // Read sequence number
+  MSG_BeginReading(msg);
+  sequence = MSG_ReadLong(msg);
+  
+  // Check for fragmentation
+  if (sequence & FRAGMENT_BIT) {
+    sequence &= ~FRAGMENT_BIT;
+    fragmented = qtrue;
+  } else {
+    fragmented = qfalse;
+  }
+  
+  // Server reads qport
+  if (chan->sock == NS_SERVER) {
+    MSG_ReadShort(msg);
+  }
+  
+  // Handle fragments
+  if (fragmented) {
+    int fragmentStart = MSG_ReadLong(msg);
+    int fragmentLength = MSG_ReadShort(msg);
+    
+    // Validate fragment
+    if (fragmentStart != chan->fragmentLength) {
+      // Out of order, drop
+      return qfalse;
+    }
+    
+    // Accumulate fragment
+    memcpy(
+      chan->fragmentBuffer + chan->fragmentLength,
+      msg->data + msg->readcount,
+      fragmentLength
+    );
+    chan->fragmentLength += fragmentLength;
+    
+    // If not last fragment, wait for more
+    if (fragmentLength == FRAGMENT_SIZE) {
+      return qfalse;
+    }
+    
+    // Reassemble complete message
+    memcpy(msg->data + 4, chan->fragmentBuffer, chan->fragmentLength);
+    msg->cursize = chan->fragmentLength + 4;
+    chan->fragmentLength = 0;
+  }
+  
+  // Discard out-of-order packets
+  if (sequence <= chan->incomingSequence) {
+    return qfalse;
+  }
+  
+  // Track dropped packets
+  chan->dropped = sequence - (chan->incomingSequence + 1);
+  chan->incomingSequence = sequence;
+  
+  return qtrue;
+}
+```
+</CodeGroup>
+
+<Warning>
+Out-of-order packets are silently dropped. The game handles missing updates through delta compression and prediction.
+</Warning>
+
+## Fragmentation
+
+### Transmitting Large Messages
+
+<CodeGroup>
+```c netchan.c:347-389
+qboolean Netchan_Transmit(netchan_t* chan, int length, const byte* data) {
+  // Check if fragmentation needed
+  if (length >= FRAGMENT_SIZE) {
+    chan->unsentFragments = qtrue;
+    chan->unsentLength = length;
+    memcpy(chan->unsentBuffer, data, length);
+    
+    // Send first fragment
+    Netchan_TransmitNextFragment(chan);
+    return qtrue;
+  }
+  
+  // Send as single packet
+  msg_t send;
+  byte send_buf[MAX_PACKETLEN];
+  MSG_Init(&send, send_buf, sizeof(send_buf));
+  
+  MSG_WriteLong(&send, chan->outgoingSequence);
+  chan->outgoingSequence++;
+  
+  if (chan->sock == NS_CLIENT) {
+    MSG_WriteShort(&send, qport->integer);
+  }
+  
+  MSG_WriteData(&send, data, length);
+  
+  return NET_SendPacket(
+    chan->sock,
+    send.cursize,
+    send.data,
+    &chan->remoteAddress
+  );
+}
+```
+</CodeGroup>
+
+### Fragment Size
+
+<CodeGroup>
+```c netchan.c:221
+#define FRAGMENT_SIZE 1248
+```
+</CodeGroup>
+
+<Info>
+1248 bytes chosen to fit within typical MTU (1500 bytes) after headers:
+- Ethernet: 14 bytes
+- IP: 20 bytes  
+- UDP: 8 bytes
+- Leaves ~1458 bytes usable, 1248 provides safety margin
+</Info>
+
+## Rate Limiting
+
+### Query Rate Limiting
+
+Protects against DoS attacks on server queries:
+
+<CodeGroup>
+```c sv_main.c:425-454
+typedef struct leakyBucket_s {
+  byte type;
+  union {
+    byte _4[4];    // IPv4
+    byte _6[16];   // IPv6
+  } ipv;
+  unsigned long long lastTime;
+  signed char burst;
+  long hash;
+  struct leakyBucket_s *prev, *next;
+} leakyBucket_t;
+
+typedef struct {
+  int max_buckets;
+  int max_hashes;
+  leakyBucket_t* buckets;
+  leakyBucket_t** bucketHashes;
+  int queryLimitsEnabled;
+  leakyBucket_t infoBucket;
+  leakyBucket_t statusBucket;
+  leakyBucket_t rconBucket;
+} queryLimit_t;
+```
+</CodeGroup>
+
+### Leaky Bucket Algorithm
+
+<CodeGroup>
+```c sv_main.c:632-655
+qboolean SVC_RateLimit(leakyBucket_t* bucket, int burst, int period) {
+  if (bucket != NULL) {
+    unsigned long long now = com_uFrameTime;
+    int interval = now - bucket->lastTime;
+    int expired = interval / period;
+    int expiredRemainder = interval % period;
+    
+    // Drain bucket over time
+    if (expired > bucket->burst) {
+      bucket->burst = 0;
+      bucket->lastTime = now;
+    } else {
+      bucket->burst -= expired;
+      bucket->lastTime = now - expiredRemainder;
+    }
+    
+    // Check if under limit
+    if (bucket->burst < burst) {
+      bucket->burst++;
+      return qfalse;  // Allow
+    }
+  }
+  
+  return qtrue;  // Deny
+}
+```
+</CodeGroup>
+
+<Accordion title="Rate Limit Configuration">
+
+**Cvars:**
+- `sv_queryIgnoreMegs` - Memory for rate limiting (MB)
+- `sv_queryIgnoreTime` - Rate limit interval (ms)
+
+**Limits:**
+- **getinfo**: 4 requests per `sv_queryIgnoreTime`
+- **getstatus**: 2 requests per `sv_queryIgnoreTime`  
+- **rcon**: 1 request per 100ms (bad password)
+
+**Bucket pools:**
+- Per-IP address buckets
+- Global buckets (info, status, rcon)
+- LAN addresses bypass rate limiting
+
+</Accordion>
+
+## Packet Reception
+
+### UDP Packet Handling
+
+<CodeGroup>
+```c sys_net.c:781-837
+int NET_GetPacket(netadr_t* net_from, void* net_message, int maxsize, int socket) {
+  int ret;
+  struct sockaddr_storage from;
+  socklen_t fromlen;
+  
+  if (socket != INVALID_SOCKET) {
+    fromlen = sizeof(from);
+    ret = recvfrom(
+      socket,
+      net_message,
+      maxsize,
+      0,
+      (struct sockaddr*)&from,
+      &fromlen
+    );
+    
+    if (ret == SOCKET_ERROR) {
+      int err = socketError;
+      if (err != EAGAIN && err != ECONNRESET) {
+        Com_PrintWarning("NET_GetPacket: %s\n", NET_ErrorString());
+      }
+      return -1;
+    }
+    
+    // Convert address
+    SockadrToNetadr((struct sockaddr*)&from, net_from, qfalse, socket);
+    
+    // Check size
+    if (ret >= maxsize) {
+      Com_PrintWarning("Oversize packet from %s\n", NET_AdrToString(net_from));
+      return -1;
+    }
+    
+    return ret;
+  }
+  
+  return -1;
+}
+```
+</CodeGroup>
+
+### Packet Routing
+
+<CodeGroup>
+```c sv_main.c:1836-1902
+void SV_PacketEvent(netadr_t* from, msg_t* msg) {
+  client_t* cl;
+  int seq;
+  
+  if (msg->cursize < 4) {
+    return;
+  }
+  
+  MSG_BeginReading(msg);
+  seq = MSG_ReadLong(msg);
+  
+  // Check for connectionless packet
+  if (seq == -1) {
+    SV_ConnectionlessPacket(from, msg);
+    return;
+  }
+  
+  // Read qport
+  unsigned short qport = MSG_ReadShort(msg);
+  
+  // Find client
+  cl = SV_ReadPackets(from, qport);
+  if (cl == NULL) {
+    NET_OutOfBandPrint(NS_SERVER, from, "disconnect");
+    return;
+  }
+  
+  // Process netchan
+  if (!Netchan_Process(&cl->netchan, msg)) {
+    return;
+  }
+  
+  // Handle message
+  SV_ExecuteClientMessage(cl, msg);
+}
+```
+</CodeGroup>
+
+## Out-of-Band Messages
+
+Out-of-band packets (sequence -1) are used for:
+
+<AccordionGroup>
+  <Accordion title="Client → Server">
+    - `getchallenge` - Request connection challenge
+    - `connect` - Initiate connection
+    - `getstatus` - Request server status
+    - `getinfo` - Request server info
+    - `rcon <password> <command>` - Remote console
+  </Accordion>
+  
+  <Accordion title="Server → Client">
+    - `challengeResponse` - Send challenge token
+    - `connectResponse` - Accept/reject connection
+    - `statusResponse` - Server status data
+    - `infoResponse` - Server info data
+    - `print` - Console message
+    - `disconnect` - Kick/disconnect
+  </Accordion>
+</AccordionGroup>
+
+### Challenge System
+
+Prevents IP spoofing and connection flooding:
+
+<CodeGroup>
+```c sv_main.c:252-261
+typedef struct {
+  netadr_t adr;
+  int challenge;
+  int clientChallenge;
+  int time;
+  int pingTime;
+  int firstTime;
+  char pbguid[33];
+  qboolean connected;
+  int ipAuthorize;
+} challenge_t;
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Client requests challenge">
+    Sends `getchallenge` packet
+  </Step>
+  <Step title="Server generates challenge">
+    Creates random number, stores with client IP
+  </Step>
+  <Step title="Client connects with challenge">
+    Includes challenge in `connect` packet
+  </Step>
+  <Step title="Server validates challenge">
+    Matches challenge to IP, rejects if invalid
+  </Step>
+</Steps>
+
+## LAN Detection
+
+The server identifies LAN clients for special handling:
+
+<CodeGroup>
+```c sys_net.c:982-1050
+qboolean Sys_IsLANAddress(netadr_t* adr) {
+  if (adr->type == NA_LOOPBACK) {
+    return qtrue;
+  }
+  
+  if (adr->type == NA_IP || adr->type == NA_TCP) {
+    // RFC1918 private ranges
+    if (adr->ip[0] == 10)  // 10.0.0.0/8
+      return qtrue;
+    if (adr->ip[0] == 172 && (adr->ip[1] & 0xf0) == 16)  // 172.16.0.0/12
+      return qtrue;
+    if (adr->ip[0] == 192 && adr->ip[1] == 168)  // 192.168.0.0/16
+      return qtrue;
+    if (adr->ip[0] == 127)  // 127.0.0.0/8
+      return qtrue;
+  }
+  
+  else if (adr->type == NA_IP6 || adr->type == NA_TCP6) {
+    // Link-local
+    if (adr->ip6[0] == 0xfe && (adr->ip6[1] & 0xc0) == 0x80)  // fe80::/10
+      return qtrue;
+    // Unique local
+    if ((adr->ip6[0] & 0xfe) == 0xfc)  // fc00::/7
+      return qtrue;
+  }
+  
+  // Check against local network interfaces
+  for (int i = 0; i < numIP; i++) {
+    if (localIP[i].type == adr->type) {
+      // Compare with netmask
+      if (SameNetwork(adr, &localIP[i])) {
+        return qtrue;
+      }
+    }
+  }
+  
+  return qfalse;
+}
+```
+</CodeGroup>
+
+<Info>
+LAN clients:
+- Bypass rate limiting
+- Can have higher maxRate
+- Shown in server browser as LAN
+</Info>
+
+## Network CVars
+
+Key networking configuration variables:
+
+<AccordionGroup>
+  <Accordion title="Basic Settings">
+    - `net_enabled` - Enable networking (bitmask)
+      - 1 = IPv4
+      - 2 = IPv6
+      - 4 = Prioritize IPv6
+    - `net_ip` - Bind IPv4 address
+    - `net_ip6` - Bind IPv6 address
+    - `net_port` - Server port (default 28960)
+    - `net_port6` - IPv6 port (default same as net_port)
+  </Accordion>
+  
+  <Accordion title="Rate Limiting">
+    - `sv_maxRate` - Maximum client data rate
+    - `sv_queryIgnoreMegs` - Rate limit memory
+    - `sv_queryIgnoreTime` - Rate limit interval
+    - `sv_floodProtect` - Enable flood protection
+  </Accordion>
+  
+  <Accordion title="Debug">
+    - `showpackets` - Show sent/received packets
+    - `showdrop` - Show dropped packets
+    - `sv_shownet` - Show network activity
+    - `sv_debugRate` - Debug rate throttling
+  </Accordion>
+</AccordionGroup>
+
+## Network Security
+
+### Cookie Challenge
+
+Prevents connection flooding:
+
+<CodeGroup>
+```c netchan.c:609-646
+int NET_CookieHash(netadr_t* from) {
+  uint32_t digest[5];
+  uint32_t workspace[80];
+  char data[64];
+  
+  if (from->type == NA_IP) {
+    // Hash IP + port + secret
+    memcpy(data, from->ip, 4);
+    memcpy(data + 4, &from->port, 2);
+    memcpy(data + 6, net_cookieSecret, 58);
+  } else if (from->type == NA_IP6) {
+    memcpy(data, from->ip6, 16);
+    memcpy(data + 16, &from->port, 2);
+    memcpy(data + 18, net_cookieSecret, 46);
+  }
+  
+  sha_init(digest);
+  sha_transform(digest, data, workspace);
+  
+  return digest[0];
+}
+```
+</CodeGroup>
+
+<Warning>
+The cookie secret is randomly generated on server start and changes on restart. Cookies from previous sessions are invalid.
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Server Architecture" href="/concepts/architecture">
+    Overall server structure
+  </Card>
+  <Card title="Configuration" href="/concepts/configuration">
+    Network-related cvars
+  </Card>
+</CardGroup>

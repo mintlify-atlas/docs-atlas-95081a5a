@@ -1,0 +1,631 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for CoD4 Unleashed Server
+---
+
+## Server Issues
+
+<AccordionGroup>
+
+<Accordion title="Server won't start or crashes immediately">
+
+### Symptoms
+- Server process exits immediately after starting
+- No output in console or log files
+- "Segmentation fault" error on Linux
+
+### Solutions
+
+**Check file permissions** (Linux):
+```bash
+chmod +x cod4u_lnx
+./cod4u_lnx
+```
+
+**Verify dependencies** (Windows):
+- Install Win32 OpenSSL v1.1.1g or later from [slproweb.com](https://slproweb.com/products/Win32OpenSSL.html)
+- Make sure all DLL files are in the same directory or in PATH
+
+**Check for missing game files**:
+```bash
+# Verify main directory contains:
+- main/ directory
+- zone/ directory  
+- main/iw_*.iwd files
+```
+
+**Review server log**:
+```bash
+# Check for errors in:
+tail -f main/games_mp.log
+```
+
+</Accordion>
+
+<Accordion title="Server runs but players can't connect">
+
+### Symptoms
+- Server appears in master list but is not joinable
+- "Server is not responding" error for clients
+- Timeout errors when connecting
+
+### Solutions
+
+**Verify port forwarding**:
+- Default port: `28960` (UDP)
+- Forward both game port and master server port
+- Check router firewall settings
+
+**Check firewall rules** (Linux):
+```bash
+# Allow UDP traffic on server port
+sudo ufw allow 28960/udp
+sudo ufw reload
+
+# Or with iptables
+sudo iptables -A INPUT -p udp --dport 28960 -j ACCEPT
+```
+
+**Verify server configuration**:
+```cfg
+set net_ip "0.0.0.0"        // Listen on all interfaces
+set net_port "28960"        // Server port
+set sv_maxclients "64"      // Max players
+```
+
+**Test connectivity**:
+```bash
+# From another machine, test UDP port
+nc -u server_ip 28960
+
+# Or use CoD4 console
+/connect server_ip:28960
+```
+
+</Accordion>
+
+<Accordion title="High CPU usage or server lag">
+
+### Symptoms
+- Server using 100% CPU
+- Players experiencing lag despite good ping
+- Server tick rate dropping below 20 FPS
+
+### Solutions
+
+**Optimize server settings**:
+```cfg
+set sv_fps "20"                    // Server frame rate
+set sv_maxclients "32"             // Reduce if needed
+set rate "25000"                   // Player rate
+set sv_maxRate "25000"             // Max rate cap
+```
+
+**Check for runaway GSC scripts**:
+- Review custom mods for infinite loops
+- Use `getCountedFps()` and `isLagging()` functions to detect performance issues
+- Monitor with: `/rcon status`
+
+**System resource checks** (Linux):
+```bash
+# Check CPU usage
+top -p $(pidof cod4u_lnx)
+
+# Monitor system load
+vmstat 1
+
+# Check for I/O bottlenecks
+iotop -o
+```
+
+**Reduce logging verbosity**:
+```cfg
+set g_logSync "0"           // Async logging
+set logfile "0"             // Disable if not needed
+```
+
+</Accordion>
+
+<Accordion title="Memory leaks or growing RAM usage">
+
+### Symptoms
+- Server RAM usage increases over time
+- Server becomes unresponsive after hours/days
+- Out of memory errors
+
+### Solutions
+
+**Monitor memory usage**:
+```bash
+# Linux
+watch -n 5 'ps aux | grep cod4u_lnx'
+
+# Check for memory leaks in plugins
+```
+
+**Plugin-related issues**:
+- Plugins must use `Plugin_Malloc()` and `Plugin_Free()` instead of standard malloc/free
+- The plugin system tracks allocations to prevent leaks
+- Unload plugins one by one to identify the culprit
+
+**Restart schedule**:
+Implement automatic restarts if memory leaks persist:
+```bash
+# Cron job to restart daily at 4 AM
+0 4 * * * systemctl restart cod4-server
+```
+
+**Check for GSC array leaks**:
+- Use `isArray()` to verify variables
+- Clear large arrays when no longer needed
+- Avoid creating massive arrays in loops
+
+</Accordion>
+
+<Accordion title="RCON not working">
+
+### Symptoms
+- "Bad rconpassword" error
+- RCON commands not executing
+- Connection timeout to RCON port
+
+### Solutions
+
+**Verify RCON configuration**:
+```cfg
+set rcon_password "yourpassword"   // Set strong password
+set sv_privatePassword ""           // Different from RCON
+```
+
+**Check RCON port** (default: game port + 1):
+```bash
+# If game port is 28960, RCON port is 28961
+netstat -an | grep 28961
+```
+
+**Firewall rules** (Linux):
+```bash
+sudo ufw allow 28961/udp
+```
+
+**Test RCON connection**:
+```bash
+# Using cod4rcon tool
+./cod4rcon server_ip:28961 password status
+
+# Or from game console
+/rcon login password
+/rcon status
+```
+
+**HL2 RCON support**:
+CoD4 Unleashed supports Source RCON protocol:
+- TCP connection on RCON port
+- Compatible with tools like `mcrcon`
+- See `hl2rcon.c` source for implementation details
+
+</Accordion>
+
+</AccordionGroup>
+
+## Plugin Issues
+
+<AccordionGroup>
+
+<Accordion title="Plugin won't load">
+
+### Symptoms
+- "Could not load plugin" error
+- Plugin doesn't appear in `pluginlist`
+- Server ignores plugin load command
+
+### Solutions
+
+**Verify file location and name**:
+```bash
+# Plugin must be in plugins/ directory
+# File name format: pluginname.so (Linux) or pluginname.dll (Windows)
+ls -la plugins/
+```
+
+**Check file permissions** (Linux):
+```bash
+chmod 755 plugins/
+chmod 755 plugins/*.so
+```
+
+**Load plugin correctly**:
+```cfg
+# In server config or console
+loadplugin myplugin    // WITHOUT extension
+
+# NOT: loadplugin myplugin.so
+```
+
+**Verify plugin compatibility**:
+- Plugin must be compiled for the correct architecture (32-bit)
+- Plugin must use the correct plugin API version
+- Check plugin documentation for requirements
+
+**Review plugin errors**:
+```bash
+# Linux - check for library dependencies
+ldd plugins/myplugin.so
+
+# Look for missing libraries
+```
+
+</Accordion>
+
+<Accordion title="Server crashes when loading plugin">
+
+### Symptoms
+- Server crashes immediately after loading plugin
+- Segmentation fault or access violation
+- "Plugin caused exception" error
+
+### Solutions
+
+**Identify the problematic plugin**:
+```bash
+# Load plugins one by one
+loadplugin plugin1
+# Server OK? Load next:
+loadplugin plugin2
+# Crash here? plugin2 is the issue
+```
+
+**Check plugin quality**:
+- Badly written plugins can crash the server
+- Plugin API is designed for speed with minimal safety checks
+- Contact plugin author for bug fixes
+
+**Verify plugin memory management**:
+- Plugins MUST use `Plugin_Malloc()` and `Plugin_Free()`
+- Never use standard `malloc()`/`free()` or C++ `new`/`delete`
+- Plugin system tracks allocations to prevent issues
+
+**Debug with symbols** (Linux):
+```bash
+# Run with gdb to get crash location
+gdb ./cod4u_lnx
+(gdb) run
+# Wait for crash
+(gdb) bt full
+```
+
+</Accordion>
+
+<Accordion title="Can't unload plugin">
+
+### Symptoms
+- "Cannot unload plugin" error
+- Plugin remains loaded after unload command
+
+### Solutions
+
+**Understand plugin types**:
+
+Plugins fall into categories:
+1. **Standard plugins**: Can be unloaded anytime
+2. **Library plugins**: Export functions to other plugins - CANNOT be unloaded
+3. **Script-library plugins**: Export GSC functions - CANNOT be unloaded
+
+**Why some plugins can't unload**:
+- If a plugin exports functions, unloading it would cause crashes when those functions are called
+- This is a security/stability feature
+- Only way to unload: restart the server
+
+**Check if plugin is a library**:
+```bash
+# Use pluginlist command
+pluginlist
+# Look for "[LIBRARY]" tag next to plugin name
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Build Issues
+
+<AccordionGroup>
+
+<Accordion title="Compilation fails with missing headers">
+
+### Symptoms
+- "fatal error: curl/curl.h: No such file or directory"
+- "Cannot find -lcurl" linker error
+
+### Solutions
+
+**Install development packages**:
+```bash
+# Debian/Ubuntu 64-bit
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install libcurl4-openssl-dev:i386
+
+# 32-bit systems
+sudo apt-get install libcurl4-openssl-dev
+```
+
+**Verify package installation**:
+```bash
+# Check for curl headers
+ls /usr/include/curl/curl.h
+
+# Check for 32-bit libraries
+ls /usr/lib/i386-linux-gnu/libcurl.*
+```
+
+</Accordion>
+
+<Accordion title="NASM errors during build">
+
+### Symptoms
+- "nasm: command not found"
+- "error: parser: instruction expected"
+
+### Solutions
+
+**Install NASM**:
+```bash
+# Linux
+sudo apt-get install nasm:i386
+
+# Or latest version
+sudo apt-get install nasm
+```
+
+**Verify NASM version**:
+```bash
+nasm -v
+# Should be 2.10 or later
+```
+
+**Windows NASM setup**:
+- Download from [nasm.us](https://www.nasm.us/)
+- Add to PATH or place in `%LOCALAPPDATA%\nasm`
+- The build script automatically looks in this location
+
+</Accordion>
+
+<Accordion title="Linker errors">
+
+### Symptoms
+- "undefined reference to" errors
+- "cannot find -ltomcrypt_linux"
+
+### Solutions
+
+**Verify library files exist**:
+```bash
+# Check lib/ directory
+ls -la lib/
+# Should contain:
+# - libtomcrypt_linux.a
+# - libtommath_linux.a
+# (or _win32.a on Windows)
+```
+
+**Clean and rebuild**:
+```bash
+# Remove old object files
+rm bin/*.o
+
+# Rebuild
+./build_elf.sh
+```
+
+**Check linker script**:
+```bash
+# Verify linkerscript.ld exists
+ls -la linkerscript*.ld
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Scripting Issues
+
+<AccordionGroup>
+
+<Accordion title="Custom GSC functions not working">
+
+### Symptoms
+- "Unknown function" errors in GSC
+- New functions from CoD4U not available
+
+### Solutions
+
+**Verify you're running CoD4 Unleashed**:
+```bash
+# Check server version in console
+# Should show CoD4U or Unleashed
+```
+
+**Check function availability**:
+- Some functions are version-specific
+- Review [Scripting API](https://docs.raid-gaming.net/) for function list
+- Use `isDefined()` to check if function exists
+
+**Example of checking function support**:
+```gsc
+if (isDefined(level.getProtocol))
+{
+    protocol = player getProtocol();
+}
+```
+
+</Accordion>
+
+<Accordion title="HTTP/HTTPS requests failing">
+
+### Symptoms
+- `httpGet()` or `httpPost()` returning errors
+- Timeout errors on HTTP requests
+
+### Solutions
+
+**Check libcurl is linked**:
+```bash
+# Linux - verify curl is linked
+ldd cod4u_lnx | grep curl
+# Should show libcurl.so.4
+```
+
+**Verify HTTPS support**:
+- CoD4 Unleashed includes HTTPS support via libcurl
+- Requires libcurl compiled with SSL support
+- Test with simple HTTP request first
+
+**Use proper HTTP functions**:
+```gsc
+// HTTP 1.1 support (new)
+response = httpGet("https://api.example.com/data");
+
+// Legacy (deprecated)
+// httpPostRequest() - use httpPost() instead
+```
+
+**Check firewall**:
+- Server must be able to make outbound connections
+- Some hosting providers block outbound HTTP/HTTPS
+
+</Accordion>
+
+<Accordion title="JSON parsing errors">
+
+### Symptoms
+- `jsonParse()` returns undefined
+- Boolean values not parsing correctly (fixed in 1.1.1)
+
+### Solutions
+
+**Use JSON module**:
+```gsc
+// Load JSON module
+#include unleashed\json;
+
+// Parse JSON string
+data = jsonParse(jsonString);
+if (!isDefined(data))
+{
+    // Parse failed
+}
+```
+
+**Check JSON validity**:
+- Use online JSON validators
+- Ensure proper escaping of quotes
+- Verify UTF-8 encoding
+
+**Version check**:
+- JSON boolean fix was in version 1.1.1
+- Update to latest version if experiencing boolean issues
+
+</Accordion>
+
+</AccordionGroup>
+
+## Performance Optimization
+
+### FPS and Lag Detection
+
+CoD4 Unleashed provides enhanced FPS monitoring:
+
+```gsc
+// Detect lag spikes properly
+fps = getCountedFps();
+if (isLagging())
+{
+    logPrint("Server is experiencing lag!\n");
+}
+
+// Old method (less accurate)
+// fps = getFps();
+```
+
+### Protocol Detection
+
+For servers supporting both 1.7 and 1.8 (Steam) clients:
+
+```gsc
+OnPlayerConnect()
+{
+    protocol = self getProtocol();
+    if (protocol == 6)
+        self iPrintLn("CoD4 1.7 client");
+    else if (protocol == 7)  
+        self iPrintLn("CoD4 1.8 Steam client");
+}
+```
+
+### Time Functions
+
+```gsc
+// Get Unix timestamp
+epoch = getEpochTime();
+
+// Convert to readable string  
+timeStr = epochTimeToString(epoch);
+```
+
+## Getting Help
+
+If you're still experiencing issues:
+
+<CardGroup cols={2}>
+
+<Card title="Community Forum" icon="comments" href="https://raid-gaming.net/forum/18-call-of-duty-4-unleashed/">
+  Post your questions on the official forum
+</Card>
+
+<Card title="Documentation" icon="book" href="https://docs.raid-gaming.net/">
+  Review the complete Scripting API reference
+</Card>
+
+<Card title="GitHub Issues" icon="github" href="https://github.com/atrX/CoD4-Unleashed-Server/issues">
+  Report bugs and technical issues
+</Card>
+
+<Card title="Server Logs" icon="file-lines">
+  Always check `main/games_mp.log` for error details
+</Card>
+
+</CardGroup>
+
+## Diagnostic Commands
+
+Useful commands for troubleshooting:
+
+```bash
+# Server status
+/rcon status
+
+# View all CVars
+/rcon cvarlist
+
+# Check loaded plugins
+/rcon pluginlist  
+
+# Server info
+/rcon serverinfo
+
+# Map rotation
+/rcon maplist
+
+# Connection info
+/rcon clientinfo <slot>
+```
+
+<Tip>
+When reporting issues, always include:
+- Server version and platform (Linux/Windows)
+- Relevant error messages from logs
+- Steps to reproduce the problem
+- List of loaded plugins
+- Server configuration (sanitized)
+</Tip>

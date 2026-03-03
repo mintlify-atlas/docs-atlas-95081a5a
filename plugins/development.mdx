@@ -1,0 +1,642 @@
+---
+title: Plugin Development
+description: Complete guide to developing custom plugins for CoD4 Unleashed Server
+---
+
+## Prerequisites
+
+Before you begin developing plugins, you need:
+
+- **GNU C Compiler (GCC)** - For compiling C/C++ code
+- **Plugin starter pack** - Header files and build scripts
+- **Basic C or C++ knowledge** - Understanding of pointers, structs, and functions
+- **CoD4 Unleashed Server** - For testing your plugins
+
+<Note>
+The plugin API is designed to work with both C and C++ code.
+</Note>
+
+## Getting Started
+
+<Steps>
+  <Step title="Setup Development Environment">
+    Install GCC and development tools:
+    
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install build-essential
+    
+    # CentOS/RHEL
+    sudo yum groupinstall "Development Tools"
+    ```
+  </Step>
+  
+  <Step title="Create Plugin Directory">
+    Create a directory for your plugin in the `plugins/` folder:
+    
+    ```bash
+    cd plugins/
+    mkdir myplugin
+    cd myplugin
+    ```
+  </Step>
+  
+  <Step title="Create Plugin Source File">
+    Create your plugin's main source file:
+    
+    ```c myplugin.c
+    #include "../pinc.h"
+    
+    PCL int OnInit() {
+        Com_Printf("MyPlugin loaded successfully!\n");
+        return 0;
+    }
+    
+    PCL void OnInfoRequest(pluginInfo_t *info) {
+        info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+        info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+        
+        info->pluginVersion.major = 1;
+        info->pluginVersion.minor = 0;
+        strncpy(info->fullName, "My Custom Plugin", sizeof(info->fullName));
+        strncpy(info->shortDescription, "Does cool stuff", sizeof(info->shortDescription));
+    }
+    ```
+  </Step>
+  
+  <Step title="Create Build Script">
+    Create a build script to compile your plugin:
+    
+    ```bash makedll32
+    #!/bin/bash
+    
+    gcc -m32 -Wall -O1 -s -fPIC -shared -o myplugin.so myplugin.c
+    
+    if [ $? -eq 0 ]; then
+        echo "Plugin compiled successfully: myplugin.so"
+    else
+        echo "Compilation failed!"
+        exit 1
+    fi
+    ```
+    
+    Make it executable:
+    
+    ```bash
+    chmod +x makedll32
+    ```
+  </Step>
+  
+  <Step title="Compile and Test">
+    Build and test your plugin:
+    
+    ```bash
+    ./makedll32
+    
+    # Load it in the server
+    loadPlugin myplugin
+    ```
+  </Step>
+</Steps>
+
+## Plugin Structure
+
+### Mandatory Functions
+
+Every plugin must implement these two functions:
+
+#### OnInit
+
+Called when the plugin is loaded:
+
+```c
+PCL int OnInit() {
+    // Initialize your plugin here
+    // Register commands, cvars, etc.
+    
+    return 0;  // Return 0 for success
+               // Return negative value to fail loading
+}
+```
+
+<Warning>
+If `OnInit()` returns a negative value, the plugin will fail to load and be unloaded immediately.
+</Warning>
+
+#### OnInfoRequest
+
+Provides plugin metadata to the server:
+
+```c
+PCL void OnInfoRequest(pluginInfo_t *info) {
+    // MANDATORY: Handler version compatibility
+    info->handlerVersion.major = PLUGIN_HANDLER_VERSION_MAJOR;
+    info->handlerVersion.minor = PLUGIN_HANDLER_VERSION_MINOR;
+    
+    // OPTIONAL: Plugin version
+    info->pluginVersion.major = 1;
+    info->pluginVersion.minor = 0;
+    
+    // OPTIONAL: Plugin metadata
+    strncpy(info->fullName, "My Plugin v1.0", sizeof(info->fullName));
+    strncpy(info->shortDescription, "Short description", sizeof(info->shortDescription));
+    strncpy(info->longDescription, "Detailed description here...", sizeof(info->longDescription));
+}
+```
+
+### Optional Functions
+
+#### OnUnload
+
+Called before the plugin is unloaded:
+
+```c
+PCL void OnUnload() {
+    // Clean up resources
+    // Close file handles, connections, etc.
+    Com_Printf("MyPlugin is unloading...\n");
+}
+```
+
+<Note>
+`OnUnload()` is not called for library or script-library plugins since they cannot be unloaded.
+</Note>
+
+## Event Callbacks
+
+Implement event callbacks to respond to server events:
+
+### Player Events
+
+```c
+PCL void OnPlayerConnect(int clientNum, netadr_t *netaddress, 
+                         char *userinfo, int authstate, 
+                         char *deniedmsg, int deniedmsgbufmaxlen) {
+    char *name = Info_ValueForKey(userinfo, "name");
+    Com_Printf("Player %s connected\n", name);
+}
+
+PCL void OnPlayerDC(int clientNum, const char *reason) {
+    char *name = Plugin_GetPlayerName(clientNum);
+    Com_Printf("Player %s disconnected: %s\n", name, reason);
+}
+
+PCL void OnClientSpawn(int clientNum) {
+    Plugin_ChatPrintf(clientNum, "^2Welcome to the server!");
+}
+
+PCL void OnClientEnterWorld(int clientNum) {
+    // Client is fully in the game
+    int uid = Plugin_GetPlayerUid(clientNum);
+    Com_Printf("Client %d (UID: %d) entered world\n", clientNum, uid);
+}
+```
+
+### Timing Events
+
+```c
+PCL void OnFrame() {
+    // Called every server frame (~50 times per second)
+    // WARNING: Keep this lightweight!
+}
+
+PCL void OnOneSecond() {
+    // Called every second
+    // Good for periodic checks
+}
+
+PCL void OnTenSeconds() {
+    // Called every 10 seconds
+    // Good for non-critical periodic tasks
+}
+```
+
+<Warning>
+`OnFrame()` is called very frequently. Keep processing minimal to avoid performance issues.
+</Warning>
+
+### Chat Events
+
+```c
+PCL void OnMessageSent(char *message, int clientNum, qboolean *show, int type) {
+    // Intercept and modify chat messages
+    
+    // Check for spam
+    if (strstr(message, "spam") != NULL) {
+        *show = qfalse;  // Hide the message
+        Plugin_ChatPrintf(clientNum, "^1Don't spam!");
+        return;
+    }
+    
+    // Log the message
+    char *name = Plugin_GetPlayerName(clientNum);
+    Com_Printf("[CHAT] %s: %s\n", name, message);
+}
+```
+
+### Server Events
+
+```c
+PCL void OnSpawnServer() {
+    Com_Printf("Server spawned!\n");
+}
+
+PCL void OnExitLevel() {
+    Com_Printf("Map is changing...\n");
+    // Save any persistent data here
+}
+
+PCL void OnPreFastRestart() {
+    Com_Printf("Fast restart initiated...\n");
+}
+
+PCL void OnPostFastRestart() {
+    Com_Printf("Fast restart completed!\n");
+}
+```
+
+## Adding Server Commands
+
+Register custom server commands that can be used via console or RCON:
+
+```c
+void MyCommand_f(void) {
+    int argc = Plugin_Cmd_Argc();
+    
+    if (argc < 2) {
+        Com_Printf("Usage: mycommand <arg>\n");
+        return;
+    }
+    
+    char *arg = Plugin_Cmd_Argv(1);
+    Com_Printf("You entered: %s\n", arg);
+    
+    // Get who invoked the command
+    int invokerSlot = Plugin_Cmd_GetInvokerSlot();
+    if (invokerSlot >= 0) {
+        Plugin_ChatPrintf(invokerSlot, "Command executed!");
+    }
+}
+
+PCL int OnInit() {
+    // Register the command
+    // Power level 50 = requires admin privileges
+    Plugin_AddCommand("mycommand", MyCommand_f, 50);
+    
+    Com_Printf("Command 'mycommand' registered!\n");
+    return 0;
+}
+```
+
+### Power Levels
+
+| Power Level | Description |
+|-------------|-------------|
+| 0 | Anyone can use |
+| 1-49 | Moderator levels |
+| 50-99 | Admin levels |
+| 100 | Super admin / owner |
+
+## Working with CVars
+
+Create and manage console variables:
+
+```c
+cvar_t *my_enabled;
+cvar_t *my_value;
+cvar_t *my_message;
+
+PCL int OnInit() {
+    // Register boolean cvar
+    my_enabled = Plugin_Cvar_RegisterBool(
+        "myplugin_enabled",     // Name
+        qtrue,                   // Default value
+        CVAR_ARCHIVE,            // Flags (save to config)
+        "Enable MyPlugin features"
+    );
+    
+    // Register integer cvar
+    my_value = Plugin_Cvar_RegisterInt(
+        "myplugin_value",
+        100,        // Default
+        0,          // Min
+        1000,       // Max
+        CVAR_ARCHIVE,
+        "Value setting"
+    );
+    
+    // Register string cvar
+    my_message = Plugin_Cvar_RegisterString(
+        "myplugin_message",
+        "Hello, World!",
+        CVAR_ARCHIVE,
+        "Message to display"
+    );
+    
+    return 0;
+}
+
+// Using cvars
+PCL void OnTenSeconds() {
+    if (!Plugin_Cvar_GetBoolean(my_enabled)) {
+        return;  // Plugin is disabled
+    }
+    
+    int value = Plugin_Cvar_GetInteger(my_value);
+    const char *message = Plugin_Cvar_GetString(my_message);
+    
+    Com_Printf("%s (value: %d)\n", message, value);
+}
+```
+
+### Cvar Flags
+
+```c
+CVAR_ARCHIVE        // Save to config file
+CVAR_USERINFO       // Send to server on connect
+CVAR_SERVERINFO     // Sent to clients
+CVAR_SYSTEMINFO     // Duplicated on all clients
+CVAR_INIT           // Can only be set from command line
+CVAR_LATCH          // Only changes on restart
+CVAR_ROM            // Read-only
+CVAR_CHEAT          // Only works with cheats enabled
+CVAR_TEMP           // Not archived
+CVAR_NORESTART      // Not cleared on cvar_restart
+```
+
+## Memory Management
+
+<Warning>
+Always use `Plugin_Malloc()` and `Plugin_Free()` instead of standard `malloc()` and `free()`.
+</Warning>
+
+```c
+typedef struct {
+    char name[64];
+    int score;
+} PlayerData_t;
+
+PlayerData_t *playerData;
+
+PCL int OnInit() {
+    int maxPlayers = Plugin_GetSlotCount();
+    
+    // Allocate memory for all players
+    playerData = (PlayerData_t*)Plugin_Malloc(sizeof(PlayerData_t) * maxPlayers);
+    
+    if (playerData == NULL) {
+        Plugin_Error(P_ERROR_DISABLE, "Failed to allocate memory");
+        return -1;
+    }
+    
+    // Initialize
+    memset(playerData, 0, sizeof(PlayerData_t) * maxPlayers);
+    
+    return 0;
+}
+
+PCL void OnUnload() {
+    // Free allocated memory
+    if (playerData != NULL) {
+        Plugin_Free(playerData);
+        playerData = NULL;
+    }
+}
+```
+
+## Adding Script Functions
+
+Extend GSC (Game Script Code) with custom functions:
+
+```c
+void GScr_CustomFunction() {
+    // Get parameters from GSC
+    int numArgs = Plugin_Scr_GetNumParam();
+    
+    if (numArgs != 2) {
+        Plugin_Scr_Error("Usage: customfunction(player, value)");
+        return;
+    }
+    
+    // Get arguments
+    gentity_t *player = Plugin_Scr_GetEntity(0);
+    int value = Plugin_Scr_GetInt(1);
+    
+    // Do something
+    int clientNum = player->s.number;
+    Plugin_ChatPrintf(clientNum, "Value: %d", value);
+    
+    // Return a result to GSC
+    Plugin_Scr_AddInt(value * 2);
+}
+
+PCL int OnInit() {
+    // Register GSC function
+    Plugin_ScrAddFunction("customfunction", GScr_CustomFunction);
+    
+    Com_Printf("GSC function 'customfunction' registered!\n");
+    return 0;
+}
+```
+
+Use in GSC:
+
+```gsc
+result = customfunction(player, 100);
+iPrintLn("Result: " + result);  // Prints: Result: 200
+```
+
+### Script Methods
+
+Add methods that can be called on entities:
+
+```c
+void GScr_EntityMethod(scr_entref_t entref) {
+    gentity_t *ent = Plugin_GetGentityForEntityNum(entref);
+    
+    if (ent == NULL) {
+        Plugin_Scr_ObjectError("Entity does not exist");
+        return;
+    }
+    
+    // Do something with the entity
+    Plugin_Scr_AddBool(qtrue);
+}
+
+PCL int OnInit() {
+    Plugin_ScrAddMethod("mymethod", GScr_EntityMethod);
+    return 0;
+}
+```
+
+Use in GSC:
+
+```gsc
+player mymethod();
+```
+
+## File Operations
+
+Read and write files on the server:
+
+```c
+void SaveData() {
+    char data[] = "Player statistics\nScore: 1000\n";
+    
+    int written = Plugin_FS_SV_WriteFile(
+        "stats/player_data.txt",
+        data,
+        strlen(data)
+    );
+    
+    if (written != strlen(data)) {
+        Com_PrintError("Failed to write file\n");
+    }
+}
+
+void LoadData() {
+    fileHandle_t file;
+    char buffer[1024];
+    
+    int len = Plugin_FS_SV_FOpenFileRead("stats/player_data.txt", &file);
+    
+    if (len < 0) {
+        Com_Printf("File not found\n");
+        return;
+    }
+    
+    Plugin_FS_Read(buffer, sizeof(buffer), file);
+    Plugin_FS_FCloseFile(file);
+    
+    Com_Printf("Loaded: %s\n", buffer);
+}
+```
+
+## Networking
+
+### TCP Connections
+
+```c
+#define MY_CONNECTION 0  // Connection slot (0-3)
+
+PCL int OnInit() {
+    // Connect to remote server
+    if (!Plugin_TcpConnect(MY_CONNECTION, "api.example.com:8080")) {
+        Com_PrintError("Failed to connect\n");
+        return -1;
+    }
+    
+    Com_Printf("Connected to remote server\n");
+    return 0;
+}
+
+PCL void OnTenSeconds() {
+    // Send data
+    char request[] = "GET /stats HTTP/1.1\r\n\r\n";
+    Plugin_TcpSendData(MY_CONNECTION, request, strlen(request));
+    
+    // Receive response
+    char buffer[4096];
+    int received = Plugin_TcpGetData(MY_CONNECTION, buffer, sizeof(buffer));
+    
+    if (received > 0) {
+        buffer[received] = '\0';
+        Com_Printf("Received: %s\n", buffer);
+    } else if (received == -1) {
+        Com_PrintError("Connection closed\n");
+    }
+}
+
+PCL void OnUnload() {
+    Plugin_TcpCloseConnection(MY_CONNECTION);
+}
+```
+
+### UDP Packets
+
+```c
+PCL void OnUdpNetEvent(netadr_t *from, msg_t *msg, int cursize) {
+    // Process incoming UDP packets
+    Com_Printf("UDP packet from %s\n", Plugin_NET_AdrToString(from));
+}
+
+void SendCustomPacket() {
+    netadr_t target;
+    Plugin_NET_StringToAdr("192.168.1.100:28960", &target, NA_IP);
+    
+    char data[] = "Hello, Server!";
+    Plugin_UdpSendData(&target, data, strlen(data));
+}
+```
+
+## Error Handling
+
+```c
+void MyFunction() {
+    void *data = Plugin_Malloc(1024);
+    
+    if (data == NULL) {
+        // Disable plugin due to critical error
+        Plugin_Error(P_ERROR_DISABLE, "Out of memory");
+        return;
+    }
+    
+    // Use data...
+    
+    Plugin_Free(data);
+}
+```
+
+### Error Codes
+
+```c
+P_ERROR_DISABLE  // Disable the plugin
+P_ERROR_TERMINATE // Terminate the server (extreme cases only)
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Memory Safety" icon="shield">
+    Always use `Plugin_Malloc()` and `Plugin_Free()`. Check for NULL pointers.
+  </Card>
+  
+  <Card title="Performance" icon="gauge">
+    Keep `OnFrame()` lightweight. Use `OnOneSecond()` or `OnTenSeconds()` for heavy operations.
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Validate all inputs. Use `Plugin_Error()` for critical failures.
+  </Card>
+  
+  <Card title="Resource Cleanup" icon="broom">
+    Always free resources in `OnUnload()`. Close files and connections.
+  </Card>
+</CardGroup>
+
+## Compilation Flags
+
+Recommended GCC flags for plugin compilation:
+
+```bash
+gcc -m32 -Wall -O1 -s -fPIC -shared -o myplugin.so myplugin.c
+```
+
+- `-m32` - Compile as 32-bit (required)
+- `-Wall` - Enable all warnings
+- `-O1` - Optimize for size and speed
+- `-s` - Strip symbols
+- `-fPIC` - Position independent code
+- `-shared` - Create shared library
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/plugins/api-reference">
+    Explore all available plugin API functions
+  </Card>
+  
+  <Card title="Example Plugins" icon="lightbulb" href="/plugins/examples">
+    Study working plugin examples
+  </Card>
+</CardGroup>

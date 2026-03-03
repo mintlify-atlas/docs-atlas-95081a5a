@@ -1,0 +1,467 @@
+---
+title: 'Player Movement'
+description: 'Functions for controlling player movement physics and mechanics'
+icon: 'person-running'
+---
+
+## Overview
+
+These functions allow you to modify player movement characteristics including gravity, jump height, movement speed, and velocity. All movement functions require enabling extended player movement first.
+
+<Warning>
+  Movement modification functions automatically enable extended player movement mode when called. This affects the player's physics calculations.
+</Warning>
+
+## setGravity
+
+Changes the gravity value for the player.
+
+```gsc
+void setGravity(<gravity>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="gravity" type="int" required>
+  The gravity value to set (must be between 1 and 50000). Default CoD4 gravity is 800.
+</ParamField>
+
+<Warning>
+  The gravity value must be in the range between 1 and 50000. Values outside this range will cause an error.
+</Warning>
+
+### Example
+
+```gsc
+OnPlayerSpawn()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Set low gravity (moon gravity)
+    self setGravity(200);
+}
+
+ToggleLowGravity()
+{
+    if(!isDefined(self.lowGravity))
+        self.lowGravity = false;
+    
+    if(self.lowGravity)
+    {
+        self setGravity(800); // Normal gravity
+        self iPrintLnBold("^2Low Gravity: OFF");
+        self.lowGravity = false;
+    }
+    else
+    {
+        self setGravity(200); // Low gravity
+        self iPrintLnBold("^2Low Gravity: ON");
+        self.lowGravity = true;
+    }
+}
+
+HighGravityZone(trigger)
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        player setGravity(1600); // Double gravity
+        player iPrintLn("^1Entered high gravity zone!");
+        
+        while(player isTouching(trigger))
+        {
+            wait 0.1;
+        }
+        
+        player setGravity(800); // Restore normal gravity
+        player iPrintLn("^2Left high gravity zone!");
+    }
+}
+```
+
+---
+
+## setJumpHeight
+
+Changes the jump height value for the player.
+
+```gsc
+void setJumpHeight(<height>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="height" type="int" required>
+  The jump height value to set (must be between 0 and 50000). Default CoD4 jump height is 39.
+</ParamField>
+
+<Warning>
+  The jump height must be in the range between 0 and 50000. Values outside this range will cause an error. A value of 0 disables jumping.
+</Warning>
+
+### Example
+
+```gsc
+OnPlayerSpawn()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Set super jump
+    self setJumpHeight(100);
+}
+
+SuperJumpPowerup()
+{
+    self endon("death");
+    
+    self setJumpHeight(150);
+    self iPrintLnBold("^2SUPER JUMP!");
+    
+    wait 10;
+    
+    self setJumpHeight(39); // Restore normal jump
+    self iPrintLnBold("^1Super jump expired");
+}
+
+DisableJumping()
+{
+    self setJumpHeight(0);
+    self iPrintLn("^1Jumping disabled");
+}
+
+HighJumpZone(trigger)
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        player.savedJumpHeight = 39;
+        player setJumpHeight(120);
+        player iPrintLn("^2High jump zone!");
+        
+        while(player isTouching(trigger))
+        {
+            wait 0.1;
+        }
+        
+        player setJumpHeight(player.savedJumpHeight);
+        player iPrintLn("^1Left high jump zone");
+    }
+}
+```
+
+---
+
+## setMoveSpeed
+
+Changes the movement speed for the player.
+
+```gsc
+void setMoveSpeed(<speed>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="speed" type="int" required>
+  The movement speed value to set (must be between 0 and 50000). Default CoD4 movement speed is 190.
+</ParamField>
+
+<Warning>
+  The movement speed must be in the range between 0 and 50000. Values outside this range will cause an error. A value of 0 will freeze the player in place.
+</Warning>
+
+### Example
+
+```gsc
+OnPlayerSpawn()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Set fast movement
+    self setMoveSpeed(300);
+}
+
+SpeedBoostPowerup()
+{
+    self endon("death");
+    
+    self setMoveSpeed(400);
+    self iPrintLnBold("^2SPEED BOOST!");
+    
+    wait 15;
+    
+    self setMoveSpeed(190); // Restore normal speed
+    self iPrintLnBold("^1Speed boost expired");
+}
+
+SlowPlayer(duration)
+{
+    self endon("death");
+    
+    self setMoveSpeed(95); // Half speed
+    self iPrintLn("^1You've been slowed!");
+    
+    wait duration;
+    
+    self setMoveSpeed(190);
+    self iPrintLn("^2Speed restored");
+}
+
+FreezePlayer()
+{
+    self.frozenSpeed = 190;
+    self setMoveSpeed(0);
+    self iPrintLnBold("^1FROZEN!");
+}
+
+UnfreezePlayer()
+{
+    if(isDefined(self.frozenSpeed))
+    {
+        self setMoveSpeed(self.frozenSpeed);
+        self iPrintLnBold("^2Unfrozen!");
+    }
+}
+
+SlowZone(trigger)
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        player setMoveSpeed(100);
+        player iPrintLn("^3Entering slow zone...");
+        
+        while(player isTouching(trigger))
+        {
+            wait 0.1;
+        }
+        
+        player setMoveSpeed(190);
+        player iPrintLn("^2Speed restored!");
+    }
+}
+```
+
+---
+
+## setVelocity
+
+Sets the player's velocity vector directly.
+
+```gsc
+void setVelocity(<velocity>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="velocity" type="vector" required>
+  A 3D vector (x, y, z) representing the velocity in each axis
+</ParamField>
+
+<Info>
+  This function directly sets the player's velocity, which is useful for launching players, creating jump pads, or implementing custom physics effects.
+</Info>
+
+### Example
+
+```gsc
+LaunchPlayerUp()
+{
+    // Launch player upward
+    self setVelocity((0, 0, 500));
+}
+
+LaunchPlayerForward()
+{
+    // Launch player forward
+    forward = anglesToForward(self.angles);
+    velocity = vectorScale(forward, 1000);
+    velocity = (velocity[0], velocity[1], 300); // Add upward component
+    
+    self setVelocity(velocity);
+}
+
+JumpPad(trigger, velocity)
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        player setVelocity(velocity);
+        player playSound("jump_pad_sound");
+        
+        wait 0.5; // Cooldown
+    }
+}
+
+BouncePad()
+{
+    trigger = getEnt("bounce_pad", "targetname");
+    
+    if(!isDefined(trigger))
+        return;
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        // Launch player up and forward
+        angles = trigger.angles;
+        forward = anglesToForward(angles);
+        
+        velocity = vectorScale(forward, 800);
+        velocity = (velocity[0], velocity[1], velocity[2] + 600);
+        
+        player setVelocity(velocity);
+        
+        wait 0.3;
+    }
+}
+
+KnockbackPlayer(attacker, victim, direction)
+{
+    // Apply knockback effect
+    knockbackForce = 300;
+    upwardForce = 200;
+    
+    velocity = vectorScale(direction, knockbackForce);
+    velocity = (velocity[0], velocity[1], upwardForce);
+    
+    victim setVelocity(velocity);
+}
+```
+
+---
+
+## setGroundReferenceEnt
+
+Sets a reference entity that affects the player's view rotation.
+
+```gsc
+void setGroundReferenceEnt(<entityId>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="entityId" type="int" required>
+  The entity ID to use as the ground reference (must be 0-1023). Set to 0 (worldspawn) to disable.
+</ParamField>
+
+<Info>
+  The ground entity's rotation will be added to the player's view. This causes the player's yaw to rotate around the entity's z-axis instead of the world z-axis. You only need to call this once; subsequent rotations of the reference entity will automatically affect the player.
+</Info>
+
+<Warning>
+  - The entity ID must be in the range 0-1023
+  - Player entities cannot be used as ground reference entities
+  - Setting it back to 0 (worldspawn) disables all further effects
+</Warning>
+
+### Example
+
+```gsc
+RotatingPlatform()
+{
+    platform = getEnt("rotating_platform", "targetname");
+    
+    if(!isDefined(platform))
+        return;
+    
+    trigger = getEnt("platform_trigger", "targetname");
+    
+    for(;;)
+    {
+        trigger waittill("trigger", player);
+        
+        // Set the platform as the ground reference
+        platformId = platform getEntityNumber();
+        player setGroundReferenceEnt(platformId);
+        player iPrintLn("^2Entered rotating platform");
+        
+        while(player isTouching(trigger))
+        {
+            wait 0.1;
+        }
+        
+        // Reset to worldspawn
+        player setGroundReferenceEnt(0);
+        player iPrintLn("^3Left rotating platform");
+    }
+}
+
+MovingTrain()
+{
+    train = getEnt("train", "targetname");
+    trainTrigger = getEnt("train_trigger", "targetname");
+    
+    // Link trigger to train
+    trainTrigger linkTo(train);
+    
+    // Rotate the train
+    train thread RotateTrain();
+    
+    // Handle players on the train
+    for(;;)
+    {
+        trainTrigger waittill("trigger", player);
+        
+        trainId = train getEntityNumber();
+        player setGroundReferenceEnt(trainId);
+        
+        player thread MonitorPlayerOnTrain(trainTrigger);
+    }
+}
+
+MonitorPlayerOnTrain(trigger)
+{
+    self endon("death");
+    self endon("disconnect");
+    
+    while(self isTouching(trigger))
+    {
+        wait 0.1;
+    }
+    
+    // Player left the train, reset reference
+    self setGroundReferenceEnt(0);
+}
+
+RotateTrain()
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        self rotateYaw(360, 10);
+        wait 10;
+    }
+}
+```
+
+## Related Functions
+
+- [Button Controls](/scripting/player/controls) - Detect player input
+- [isLagging](/scripting/player/info#islagging) - Check if player is lagging

@@ -1,0 +1,440 @@
+---
+title: Utility Functions
+description: String manipulation, type checking, and system utilities
+icon: wrench
+---
+
+Utility functions provide essential tools for string manipulation, type conversion, cryptography, time handling, and system operations.
+
+## String Manipulation
+
+### strRepl
+
+Finds all occurrences of a search string and replaces them with a replacement string.
+
+```gsc
+result = strRepl(mainString, search, replacement)
+```
+
+<ParamField path="mainString" type="string" required>
+  The string to search in
+</ParamField>
+
+<ParamField path="search" type="string" required>
+  The substring to find
+</ParamField>
+
+<ParamField path="replacement" type="string" required>
+  The string to replace matches with
+</ParamField>
+
+<ResponseField name="result" type="string">
+  Returns a new string with all replacements made. The original string is not modified.
+</ResponseField>
+
+```gsc Examples
+text = "Hello World";
+result = strRepl(text, "World", "CoD4");
+// result = "Hello CoD4"
+
+path = "/path/to/file";
+result = strRepl(path, "/", "\\");
+// result = "\\path\\to\\file"
+```
+
+### strColorStrip
+
+Removes all CoD4 color codes from a string.
+
+```gsc
+result = strColorStrip(text)
+```
+
+<ParamField path="text" type="string" required>
+  The string containing color codes (e.g., `^1`, `^2`, etc.)
+</ParamField>
+
+<ResponseField name="result" type="string">
+  Returns the string with all color codes normalized to `^7` (white)
+</ResponseField>
+
+```gsc Example
+coloredText = "^1Red ^2Green ^3Yellow";
+plainText = strColorStrip(coloredText);
+// plainText = "^7Red ^7Green ^7Yellow"
+```
+
+### strTokByLen
+
+Tokenizes a string into an array based on character length, attempting to preserve complete words.
+
+```gsc
+array = strTokByLen(text, maxLength)
+```
+
+<ParamField path="text" type="string" required>
+  The string to tokenize
+</ParamField>
+
+<ParamField path="maxLength" type="int" required>
+  The maximum character count per token
+</ParamField>
+
+<ResponseField name="array" type="string[]">
+  Returns an array of string tokens, each preserving color codes
+</ResponseField>
+
+<Note>
+  This function intelligently breaks strings at word boundaries when possible and preserves color codes across tokens.
+</Note>
+
+```gsc Example: Breaking long text
+longText = "This is a very long message that needs to be split";
+tokens = strTokByLen(longText, 20);
+
+for (i = 0; i < tokens.size; i++) {
+    iPrintLn(tokens[i]);
+}
+// Output:
+// "This is a very long"
+// "message that needs"
+// "to be split"
+```
+
+### toUpper
+
+Converts a string to uppercase.
+
+```gsc
+result = toUpper(text)
+```
+
+<ParamField path="text" type="string" required>
+  The string to convert
+</ParamField>
+
+<ResponseField name="result" type="string">
+  Returns the string in uppercase
+</ResponseField>
+
+```gsc Example
+name = "john";
+upper = toUpper(name);
+// upper = "JOHN"
+```
+
+### toTitle
+
+Converts a string to title case (first letter of each word capitalized).
+
+```gsc
+result = toTitle(text)
+```
+
+<ParamField path="text" type="string" required>
+  The string to convert
+</ParamField>
+
+<ResponseField name="result" type="string">
+  Returns the string in title case
+</ResponseField>
+
+```gsc Example
+text = "call of duty 4";
+title = toTitle(text);
+// title = "Call Of Duty 4"
+```
+
+## Type Conversion
+
+### toFloat
+
+Converts a string, integer, or float to a float value.
+
+```gsc
+result = toFloat(value)
+```
+
+<ParamField path="value" type="string | int | float" required>
+  The value to convert to float
+</ParamField>
+
+<ResponseField name="result" type="float | int">
+  Returns the value as a float. If the input is an integer, returns it as-is (CoD4 will cast automatically when needed).
+</ResponseField>
+
+```gsc Examples
+str = "3.14";
+floatVal = toFloat(str);
+// floatVal = 3.14
+
+intVal = 42;
+floatVal = toFloat(intVal);
+// floatVal = 42
+
+floatVal = toFloat("123.456");
+// floatVal = 123.456
+```
+
+### isArray
+
+Checks if a variable is an array.
+
+```gsc
+result = isArray(variable)
+```
+
+<ParamField path="variable" type="any" required>
+  The variable to check
+</ParamField>
+
+<ResponseField name="result" type="bool">
+  Returns `true` if the variable is an array, `false` otherwise
+</ResponseField>
+
+```gsc Example
+data = [];
+if (isArray(data)) {
+    data[0] = "value";
+}
+
+str = "text";
+if (!isArray(str)) {
+    iPrintLn("Not an array: " + str);
+}
+```
+
+## Cryptography
+
+### sha256
+
+Calculates the SHA-256 hash of an input string.
+
+```gsc
+hash = sha256(input)
+```
+
+<ParamField path="input" type="string" required>
+  The string to hash
+</ParamField>
+
+<ResponseField name="hash" type="string">
+  Returns the SHA-256 hash as a hexadecimal string (64 characters)
+</ResponseField>
+
+```gsc Example: Password hashing
+password = "secret123";
+hash = sha256(password);
+iPrintLn("Hash: " + hash);
+// Hash: 2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b
+
+// Verify password
+inputPassword = "secret123";
+inputHash = sha256(inputPassword);
+if (inputHash == hash) {
+    iPrintLn("Password correct!");
+}
+```
+
+## Time Functions
+
+### getEpochTime
+
+Returns the current Unix timestamp (seconds since January 1, 1970 UTC).
+
+```gsc
+timestamp = getEpochTime()
+```
+
+<ResponseField name="timestamp" type="int">
+  Returns the current Unix timestamp in seconds
+</ResponseField>
+
+```gsc Example
+startTime = getEpochTime();
+// ... do something ...
+endTime = getEpochTime();
+elapsed = endTime - startTime;
+iPrintLn("Operation took " + elapsed + " seconds");
+```
+
+### epochTimeToString
+
+Converts a Unix timestamp to a formatted date/time string.
+
+```gsc
+formatted = epochTimeToString(timestamp, timezone, format)
+```
+
+<ParamField path="timestamp" type="int" required>
+  The Unix timestamp to convert
+</ParamField>
+
+<ParamField path="timezone" type="int" required>
+  - `0` = UTC timezone
+  - `1` = Local timezone
+</ParamField>
+
+<ParamField path="format" type="string" required>
+  The format string (uses C `strftime` format specifiers)
+</ParamField>
+
+<ResponseField name="formatted" type="string">
+  Returns the formatted date/time string
+</ResponseField>
+
+<Info>
+  Format specifiers:
+  - `%Y` = Year (4 digits)
+  - `%m` = Month (01-12)
+  - `%d` = Day (01-31)
+  - `%H` = Hour (00-23)
+  - `%M` = Minute (00-59)
+  - `%S` = Second (00-59)
+  - `%A` = Full weekday name
+  - `%B` = Full month name
+  
+  See [strftime documentation](https://cplusplus.com/reference/ctime/strftime) for all format codes.
+</Info>
+
+```gsc Examples
+time = getEpochTime();
+
+// UTC time
+utcStr = epochTimeToString(time, 0, "%Y-%m-%d %H:%M:%S");
+iPrintLn("UTC: " + utcStr);
+// UTC: 2026-03-03 14:30:45
+
+// Local time
+localStr = epochTimeToString(time, 1, "%A, %B %d, %Y at %H:%M");
+iPrintLn("Local: " + localStr);
+// Local: Tuesday, March 03, 2026 at 09:30
+
+// Custom format
+custom = epochTimeToString(time, 0, "%Y/%m/%d");
+iPrintLn("Date: " + custom);
+// Date: 2026/03/03
+```
+
+## System Operations
+
+### system
+
+Executes a system command on the server.
+
+```gsc
+system(command)
+```
+
+<ParamField path="command" type="string" required>
+  The system command to execute
+</ParamField>
+
+<Warning>
+  This function executes arbitrary system commands and can be dangerous. Only use it with trusted input and ensure your server runs with minimal privileges. This function does not return the command output.
+</Warning>
+
+```gsc Example: Creating a backup
+system("cp -r main backup_" + getTime());
+```
+
+<Note>
+  The `system()` function does not return command output. Use with caution in production environments.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Validate Input" icon="shield-check">
+    Always validate and sanitize user input before using it with `system()` or file operations.
+  </Card>
+  
+  <Card title="Use Type Checking" icon="check-double">
+    Use `isArray()` and other type checkers to prevent runtime errors.
+  </Card>
+  
+  <Card title="Format Timestamps" icon="clock">
+    Use `epochTimeToString()` for user-friendly date displays instead of raw timestamps.
+  </Card>
+  
+  <Card title="Hash Sensitive Data" icon="key">
+    Use `sha256()` to hash passwords and sensitive data before storing or comparing.
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+```gsc Example: Player session logging system
+logPlayerSession(player) {
+    // Get current time
+    timestamp = getEpochTime();
+    dateStr = epochTimeToString(timestamp, 0, "%Y-%m-%d %H:%M:%S");
+    
+    // Clean player name
+    cleanName = strColorStrip(player.name);
+    cleanName = strRepl(cleanName, "^", "");
+    cleanName = strRepl(cleanName, "7", "");
+    
+    // Generate session ID from player GUID and timestamp
+    sessionData = player getGuid() + ":" + timestamp;
+    sessionId = sha256(sessionData);
+    
+    // Create log entry
+    logEntry = dateStr + " | ";
+    logEntry += cleanName + " | ";
+    logEntry += player getIp() + " | ";
+    logEntry += "Session: " + sessionId;
+    
+    // Write to log file
+    fh = fsOpen("sessions.log", "append");
+    if (fh) {
+        fsWriteLine(fh, logEntry);
+        fsClose(fh);
+    }
+    
+    return sessionId;
+}
+
+formatPlayerStats(player) {
+    // Convert stats to proper formats
+    kdr = 0.0;
+    if (player.deaths > 0) {
+        kdr = toFloat(player.kills) / toFloat(player.deaths);
+    }
+    
+    // Format player name
+    displayName = toTitle(strColorStrip(player.name));
+    
+    // Create formatted stats string
+    stats = "";
+    stats += "Player: " + displayName;
+    stats += " | K/D: " + kdr;
+    stats += " | Score: " + player.score;
+    
+    return stats;
+}
+
+processChatMessage(player, message) {
+    // Replace profanity
+    clean = strRepl(message, "badword", "***");
+    
+    // Convert commands to uppercase for processing
+    if (isSubStr(clean, "!")) {
+        tokens = strTok(clean, " ");
+        if (tokens.size > 0) {
+            command = toUpper(tokens[0]);
+            
+            if (command == "!TIME") {
+                time = getEpochTime();
+                timeStr = epochTimeToString(time, 1, "%H:%M:%S");
+                player iPrintLn("Server time: " + timeStr);
+                return;
+            }
+        }
+    }
+    
+    // Broadcast cleaned message
+    cleanName = strColorStrip(player.name);
+    iPrintLn(cleanName + ": " + clean);
+}
+```

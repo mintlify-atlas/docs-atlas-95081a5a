@@ -1,0 +1,601 @@
+---
+title: Contributing
+description: How to contribute to the CoD4 Unleashed Server project
+---
+
+## Welcome Contributors
+
+CoD4 Unleashed Server is an open-source project that welcomes contributions from the community. Whether you're fixing bugs, adding features, improving documentation, or creating plugins, your contributions help make the server better for everyone.
+
+## Project Information
+
+### Repository
+
+The project is hosted on GitHub:
+
+<Card title="CoD4-Unleashed-Server" icon="github" href="https://github.com/atrX/CoD4-Unleashed-Server">
+  Main repository for CoD4 Unleashed Server source code
+</Card>
+
+### License
+
+This project is released under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+Key points about AGPL-3.0:
+- You can freely use, modify, and distribute this software
+- If you modify the server and run it publicly, you must make your source code available
+- Any derivative works must also be licensed under AGPL-3.0
+- Network use is considered distribution (key difference from GPL)
+
+Read the full license in the [LICENSE](https://github.com/atrX/CoD4-Unleashed-Server/blob/master/LICENSE) file.
+
+## Ways to Contribute
+
+<CardGroup cols={2}>
+
+<Card title="Report Bugs" icon="bug">
+  Found a bug? Open an issue on GitHub with detailed information
+</Card>
+
+<Card title="Fix Issues" icon="wrench">
+  Browse open issues and submit pull requests with fixes
+</Card>
+
+<Card title="Add Features" icon="plus">
+  Implement new functionality or enhance existing features
+</Card>
+
+<Card title="Write Documentation" icon="book">
+  Improve docs, add examples, or create tutorials
+</Card>
+
+<Card title="Create Plugins" icon="puzzle-piece">
+  Develop plugins using the Plugin API
+</Card>
+
+<Card title="Test Changes" icon="flask">
+  Test pull requests and provide feedback
+</Card>
+
+</CardGroup>
+
+## Getting Started
+
+<Steps>
+
+<Step title="Fork the repository">
+
+Create your own fork on GitHub:
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/CoD4-Unleashed-Server.git
+cd CoD4-Unleashed-Server
+
+# Add upstream remote
+git remote add upstream https://github.com/atrX/CoD4-Unleashed-Server.git
+```
+
+</Step>
+
+<Step title="Set up development environment">
+
+Install required dependencies for building:
+
+```bash
+# Debian/Ubuntu 64-bit
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install nasm:i386 build-essential gcc-multilib g++-multilib libcurl4-openssl-dev:i386
+
+# See Building from Source for more platforms
+```
+
+</Step>
+
+<Step title="Create a branch">
+
+Create a feature branch for your changes:
+
+```bash
+git checkout -b feature/my-new-feature
+# or
+git checkout -b fix/bug-description
+```
+
+</Step>
+
+<Step title="Make your changes">
+
+Write your code following the project conventions:
+- Follow existing code style
+- Add comments for complex logic
+- Update documentation if needed
+- Test your changes thoroughly
+
+</Step>
+
+<Step title="Build and test">
+
+Compile and test your changes:
+
+```bash
+# Build the project
+./build_elf.sh
+
+# Test the server
+cd bin
+./cod4u_lnx +set fs_game "" +map mp_crash
+```
+
+</Step>
+
+<Step title="Commit your changes">
+
+Write clear commit messages:
+
+```bash
+git add .
+git commit -m "Add feature: Brief description of change"
+
+# Good commit message examples:
+# "Fix memory leak in plugin handler"
+# "Add support for custom HTTP headers"
+# "Improve error handling in JSON parser"
+```
+
+</Step>
+
+<Step title="Push and create pull request">
+
+Push your branch and create a PR:
+
+```bash
+git push origin feature/my-new-feature
+```
+
+Then open a pull request on GitHub with:
+- Clear description of changes
+- Why the change is needed
+- How to test it
+- Any related issue numbers
+
+</Step>
+
+</Steps>
+
+## Code Guidelines
+
+### Code Style
+
+The project uses consistent coding style across the codebase:
+
+<Accordion title="C Code Style">
+
+```c
+// Use K&R style bracing
+if (condition)
+{
+    doSomething();
+}
+
+// Function definitions
+void MyFunction(int param1, char *param2)
+{
+    // Function body
+}
+
+// Variable naming
+int myVariable;          // camelCase for locals
+static int g_globalVar;  // g_ prefix for globals
+
+// Constants
+#define MAX_PLAYERS 64   // UPPER_CASE
+```
+
+The project includes `.clang-format` configuration:
+
+```bash
+# Format code automatically
+clang-format -i src/myfile.c
+```
+
+</Accordion>
+
+<Accordion title="Assembly Code Style">
+
+```asm
+; NASM style comments
+; Clear section labels
+
+section .text
+
+global _MyFunction
+_MyFunction:
+    push ebp
+    mov ebp, esp
+    ; Function code
+    pop ebp
+    ret
+```
+
+</Accordion>
+
+<Accordion title="GSC Code Style">
+
+```gsc
+// Function naming: camelCase
+myFunction()
+{
+    // Variable naming: camelCase
+    myVar = 123;
+    
+    // Clear conditionals
+    if (isDefined(myVar))
+    {
+        // Code
+    }
+}
+```
+
+</Accordion>
+
+### Editor Configuration
+
+The project includes `.editorconfig` for consistent formatting:
+
+```ini
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+```
+
+Most modern editors support EditorConfig automatically.
+
+### Code Quality
+
+<Steps>
+
+<Step title="Compile without warnings">
+
+Fix all compiler warnings:
+
+```bash
+# Build with all warnings enabled
+gcc -Wall -Wextra -Werror ...
+```
+
+</Step>
+
+<Step title="Test thoroughly">
+
+Test your changes:
+- Test on both Linux and Windows if possible
+- Test with various configurations
+- Test with existing mods and plugins
+- Check for memory leaks with valgrind (Linux)
+
+</Step>
+
+<Step title="Document your code">
+
+Add documentation:
+- Comment complex algorithms
+- Document new functions
+- Update API documentation
+- Add usage examples
+
+</Step>
+
+</Steps>
+
+## Developing Plugins
+
+### Plugin Development Setup
+
+<Steps>
+
+<Step title="Get the plugin starter pack">
+
+The `plugins/` directory contains:
+- `readme.txt`: Plugin API documentation
+- Example plugins
+- Plugin header files
+
+</Step>
+
+<Step title="Create your plugin">
+
+```c
+#include "plugin_includes.h"
+
+// Plugin initialization
+PLUGIN_ENTRY()
+{
+    Plugin_Printf("My Plugin loaded!\n");
+    return 0;
+}
+
+// Event handler example
+void OnTenSeconds()
+{
+    Plugin_Printf("Ten seconds passed\n");
+}
+```
+
+</Step>
+
+<Step title="Build your plugin">
+
+```bash
+# Linux
+gcc -m32 -shared -fPIC -o plugins/myplugin.so myplugin.c -Iplugins/
+
+# Windows (MinGW)
+gcc -m32 -shared -o plugins/myplugin.dll myplugin.c -Iplugins/ -Llib/ -lcom_plugin
+```
+
+</Step>
+
+<Step title="Test your plugin">
+
+```bash
+# In server console or config
+loadplugin myplugin
+
+# Check it loaded
+pluginlist
+```
+
+</Step>
+
+</Steps>
+
+### Plugin API Guidelines
+
+<Warning>
+**Memory Management**: Always use `Plugin_Malloc()` and `Plugin_Free()` instead of standard malloc/free. The plugin system tracks allocations to prevent memory leaks when plugins are unloaded.
+</Warning>
+
+```c
+// CORRECT
+void *data = Plugin_Malloc(1024);
+// Use data...
+Plugin_Free(data);
+
+// WRONG - Will cause issues!
+void *data = malloc(1024);  // DON'T DO THIS
+free(data);                 // DON'T DO THIS
+```
+
+### Available Plugin Events
+
+Plugins can hook into various server events:
+
+```c
+void OnTenSeconds()      // Called every 10 seconds
+void OnOneSecond()        // Called every second  
+void OnFrame()            // Called every frame
+void OnPlayerConnect()    // Player connecting
+void OnPlayerDisconnect() // Player disconnecting
+void OnInfoRequest()      // Server info request
+void OnPlayerSpawn()      // Player spawned
+void OnPlayerKilled()     // Player killed
+// See plugin documentation for full list
+```
+
+### Plugin Types
+
+<Tabs>
+  <Tab title="Standard Plugin">
+    Regular plugin that can be loaded and unloaded:
+    ```c
+    PLUGIN_ENTRY() { ... }
+    ```
+  </Tab>
+  
+  <Tab title="Library Plugin">
+    Exports functions for other plugins (cannot be unloaded):
+    ```c
+    PLUGIN_EXPORT void MyExportedFunction() { ... }
+    ```
+  </Tab>
+  
+  <Tab title="Script-Library Plugin">
+    Exports functions to GSC scripts (cannot be unloaded):
+    ```c
+    PLUGIN_EXPORT_SCRIPT void MyGSCFunction() { ... }
+    ```
+  </Tab>
+</Tabs>
+
+## Pull Request Guidelines
+
+### Before Submitting
+
+<Accordion title="Checklist">
+
+- [ ] Code compiles without errors or warnings
+- [ ] Changes are tested on Linux and/or Windows
+- [ ] Code follows project style guidelines
+- [ ] Comments added for complex logic
+- [ ] Documentation updated if needed
+- [ ] Commit messages are clear and descriptive
+- [ ] No unnecessary files included (binaries, IDE configs, etc.)
+- [ ] Changes are focused on a single issue/feature
+
+</Accordion>
+
+### PR Description Template
+
+```markdown
+## Description
+Brief description of what this PR does.
+
+## Motivation
+Why is this change needed? What problem does it solve?
+
+## Changes
+- List of specific changes made
+- Breaking changes (if any)
+
+## Testing
+How was this tested?
+- [ ] Tested on Linux
+- [ ] Tested on Windows
+- [ ] Tested with existing mods
+- [ ] Tested with plugins
+
+## Related Issues
+Fixes #123
+Related to #456
+```
+
+### Review Process
+
+<Steps>
+
+<Step title="Automated checks">
+GitHub Actions runs automated checks on your PR
+</Step>
+
+<Step title="Code review">
+Project maintainers review your code and provide feedback
+</Step>
+
+<Step title="Address feedback">
+Make requested changes and push updates to your branch
+</Step>
+
+<Step title="Approval and merge">
+Once approved, maintainers will merge your PR
+</Step>
+
+</Steps>
+
+## Reporting Bugs
+
+When reporting bugs, include:
+
+<AccordionGroup>
+
+<Accordion title="System Information">
+
+- Operating system and version
+- Server version (from console/log)
+- Architecture (32-bit/64-bit)
+- Build type (pre-built binary or compiled from source)
+
+</Accordion>
+
+<Accordion title="Bug Description">
+
+- Clear description of the issue
+- Expected behavior vs actual behavior
+- When the issue started occurring
+- Frequency (always, sometimes, rarely)
+
+</Accordion>
+
+<Accordion title="Reproduction Steps">
+
+1. Step-by-step instructions to reproduce
+2. Specific configuration or setup needed
+3. Any relevant commands or actions
+
+</Accordion>
+
+<Accordion title="Logs and Output">
+
+```bash
+# Include relevant log excerpts
+# main/games_mp.log
+# Console output
+# Error messages
+```
+
+</Accordion>
+
+<Accordion title="Additional Context">
+
+- List of loaded plugins
+- Active mods or modifications
+- Recent changes to configuration
+- Screenshots or videos if applicable
+
+</Accordion>
+
+</AccordionGroup>
+
+## Community
+
+### Getting Help
+
+<CardGroup cols={2}>
+
+<Card title="Forum" icon="comments" href="https://raid-gaming.net/forum/18-call-of-duty-4-unleashed/">
+  Ask questions and discuss with the community
+</Card>
+
+<Card title="Documentation" icon="book" href="https://docs.raid-gaming.net/">
+  Official Scripting API reference
+</Card>
+
+<Card title="GitHub Issues" icon="github" href="https://github.com/atrX/CoD4-Unleashed-Server/issues">
+  Report bugs and request features
+</Card>
+
+<Card title="GitHub Discussions" icon="message-dots" href="https://github.com/atrX/CoD4-Unleashed-Server/discussions">
+  General discussions and questions
+</Card>
+
+</CardGroup>
+
+### Stay Updated
+
+Keep your fork in sync with upstream:
+
+```bash
+# Fetch upstream changes
+git fetch upstream
+
+# Merge into your main branch
+git checkout main
+git merge upstream/main
+
+# Push to your fork
+git push origin main
+```
+
+## Recognition
+
+Contributors are recognized in:
+- Project README
+- Release notes
+- Git commit history
+
+Significant contributions may result in:
+- Collaborator status
+- Direct commit access
+- Project maintainer role
+
+## Questions?
+
+If you have questions about contributing:
+
+- Check existing issues and discussions
+- Ask on the community forum
+- Open a GitHub discussion
+- Contact project maintainers
+
+<Note>
+We appreciate all contributions, no matter how small. Even fixing typos or improving documentation helps make the project better!
+</Note>
+
+Thank you for contributing to CoD4 Unleashed Server!

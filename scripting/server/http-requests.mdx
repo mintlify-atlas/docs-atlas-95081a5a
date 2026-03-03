@@ -1,0 +1,341 @@
+---
+title: HTTP Request Functions
+description: Make HTTP requests to external web servers and APIs
+icon: globe
+---
+
+The HTTP request functions allow your server scripts to communicate with external web services and APIs. These functions use libcurl internally and support GET, POST, PUT, PATCH, and DELETE methods.
+
+## GET Requests
+
+### httpGet
+
+Performs an HTTP GET request and returns the server's response.
+
+```gsc
+response = httpGet(url, [headers...])
+```
+
+<ParamField path="url" type="string" required>
+  The full URL to request (e.g., `"https://api.example.com/users"`)
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic). Each header should be a string in the format `"Key: Value"`
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+```gsc Example: Fetching data
+response = httpGet("https://api.example.com/players");
+if (isDefined(response)) {
+    iPrintLn("Response: " + response);
+}
+```
+
+```gsc Example: With custom headers
+response = httpGet(
+    "https://api.example.com/data",
+    "Authorization: Bearer token123",
+    "Accept: application/json"
+);
+```
+
+## POST Requests
+
+### httpPost
+
+Performs an HTTP POST request with a request body.
+
+```gsc
+response = httpPost(url, body, [headers...])
+```
+
+<ParamField path="url" type="string" required>
+  The full URL to request
+</ParamField>
+
+<ParamField path="body" type="string" required>
+  The request body (typically JSON or form data)
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic)
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+<Note>
+  If no `Content-Type` header is provided, it defaults to `application/json`.
+</Note>
+
+```gsc Example: Sending JSON data
+playerData = "{\"name\":\"" + player.name + "\",\"score\":" + player.score + "}";
+response = httpPost("https://api.example.com/players", playerData);
+```
+
+```gsc Example: With authentication
+response = httpPost(
+    "https://api.example.com/submit",
+    "{\"data\":\"value\"}",
+    "Authorization: Bearer token123",
+    "Content-Type: application/json"
+);
+```
+
+## PUT Requests
+
+### httpPut
+
+Performs an HTTP PUT request to update a resource.
+
+```gsc
+response = httpPut(url, body, [headers...])
+```
+
+<ParamField path="url" type="string" required>
+  The full URL to request
+</ParamField>
+
+<ParamField path="body" type="string" required>
+  The request body
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic)
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+```gsc Example: Updating a resource
+response = httpPut(
+    "https://api.example.com/players/123",
+    "{\"score\":1500}"
+);
+```
+
+## PATCH Requests
+
+### httpPatch
+
+Performs an HTTP PATCH request to partially update a resource.
+
+```gsc
+response = httpPatch(url, body, [headers...])
+```
+
+<ParamField path="url" type="string" required>
+  The full URL to request
+</ParamField>
+
+<ParamField path="body" type="string" required>
+  The request body
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic)
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+```gsc Example: Partial update
+response = httpPatch(
+    "https://api.example.com/users/456",
+    "{\"status\":\"online\"}"
+);
+```
+
+## DELETE Requests
+
+### httpDelete
+
+Performs an HTTP DELETE request to remove a resource.
+
+```gsc
+response = httpDelete(url, [body], [headers...])
+```
+
+<ParamField path="url" type="string" required>
+  The full URL to request
+</ParamField>
+
+<ParamField path="body" type="string" optional>
+  Optional request body
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic)
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+```gsc Example: Deleting a resource
+response = httpDelete("https://api.example.com/sessions/789");
+```
+
+## Generic HTTP Request
+
+### httpRequest
+
+Performs an HTTP request with any custom method.
+
+```gsc
+response = httpRequest(method, url, [body], [headers...])
+```
+
+<ParamField path="method" type="string" required>
+  The HTTP method (e.g., `"GET"`, `"POST"`, `"HEAD"`, `"OPTIONS"`)
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  The full URL to request
+</ParamField>
+
+<ParamField path="body" type="string" optional>
+  Optional request body
+</ParamField>
+
+<ParamField path="headers" type="string" optional>
+  Optional HTTP headers (variadic)
+</ParamField>
+
+<ResponseField name="response" type="string | undefined">
+  Returns the response body as a string, or `undefined` if the request fails
+</ResponseField>
+
+```gsc Example: Custom method
+response = httpRequest("HEAD", "https://api.example.com/status");
+```
+
+## Deprecated Function
+
+### httpPostRequest
+
+<Warning>
+  This function is deprecated. Use `httpPost()` instead.
+</Warning>
+
+Legacy HTTP POST request function.
+
+```gsc
+response = httpPostRequest(host, port, path, postData, [receive])
+```
+
+<ParamField path="host" type="string" required>
+  The hostname or IP address
+</ParamField>
+
+<ParamField path="port" type="int" required>
+  The port number
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  The request path
+</ParamField>
+
+<ParamField path="postData" type="string" required>
+  The POST data
+</ParamField>
+
+<ParamField path="receive" type="int" optional>
+  Whether to receive a response (1 = yes, 0 = no). Default: 1
+</ParamField>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use HTTPS" icon="lock">
+    Always use HTTPS URLs for secure communication. SSL verification is disabled by default.
+  </Card>
+  
+  <Card title="Handle Errors" icon="triangle-exclamation">
+    Always check if the response is `undefined` before using it.
+  </Card>
+  
+  <Card title="Escape JSON" icon="code">
+    Properly escape quotes in JSON strings using backslashes.
+  </Card>
+  
+  <Card title="Async Behavior" icon="clock">
+    HTTP requests are synchronous and will block script execution. Keep requests fast.
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+```gsc Example: Player authentication system
+authenticatePlayer(player) {
+    // Prepare player data as JSON
+    guid = player getGuid();
+    name = player.name;
+    
+    jsonData = "{";
+    jsonData += "\"guid\":\"" + guid + "\",";
+    jsonData += "\"name\":\"" + name + "\",";
+    jsonData += "\"timestamp\":" + getTime();
+    jsonData += "}";
+    
+    // Send authentication request
+    response = httpPost(
+        "https://api.example.com/auth",
+        jsonData,
+        "Authorization: Bearer server_token_123",
+        "Content-Type: application/json"
+    );
+    
+    if (!isDefined(response)) {
+        iPrintLn("Authentication failed: No response");
+        return false;
+    }
+    
+    // Parse response (simplified - use JSON parser in production)
+    if (isSubStr(response, "\"authenticated\":true")) {
+        iPrintLn(player.name + " authenticated successfully");
+        return true;
+    }
+    
+    return false;
+}
+
+reportServerStats() {
+    players = getEntArray("player", "classname");
+    
+    stats = "{";
+    stats += "\"server\":\"" + getCvar("sv_hostname") + "\",";
+    stats += "\"players\":" + players.size + ",";
+    stats += "\"map\":\"" + getDvar("mapname") + "\"";
+    stats += "}";
+    
+    response = httpPost("https://stats.example.com/report", stats);
+    
+    if (isDefined(response)) {
+        iPrintLn("Stats reported successfully");
+    }
+}
+
+checkForUpdates() {
+    response = httpGet(
+        "https://updates.example.com/version",
+        "User-Agent: CoD4-Unleashed-Server"
+    );
+    
+    if (isDefined(response)) {
+        latestVersion = response;
+        currentVersion = "1.0.0";
+        
+        if (latestVersion != currentVersion) {
+            iPrintLnBold("Server update available: " + latestVersion);
+        }
+    }
+}
+```

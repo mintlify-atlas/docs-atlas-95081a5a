@@ -1,0 +1,319 @@
+---
+title: Building from Source
+description: Instructions for compiling CoD4 Unleashed Server from source on Linux and Windows
+---
+
+## Overview
+
+This guide will walk you through compiling CoD4 Unleashed Server from source code. The build process is straightforward and uses standard compilation tools.
+
+## Prerequisites
+
+### Required Tools
+
+To compile CoD4U-Server, you'll need the following installed:
+
+- **gcc** (Linux) or **mingw32** (Windows)
+- **nasm** (Netwide Assembler)
+- **libcurl** (for HTTP/HTTPS support)
+
+### Linux Installation
+
+<Accordion title="Debian/Ubuntu 32-bit">
+
+```bash
+sudo apt-get install nasm build-essential libcurl4-openssl-dev
+```
+
+</Accordion>
+
+<Accordion title="Debian/Ubuntu 64-bit">
+
+```bash
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install nasm:i386 build-essential gcc-multilib g++-multilib libcurl4-openssl-dev:i386
+```
+
+</Accordion>
+
+<Accordion title="Arch Linux 32-bit">
+
+```bash
+sudo pacman -S base-devel nasm curl
+```
+
+</Accordion>
+
+### Windows Dependencies
+
+For Windows builds, you'll need to install:
+
+- **MinGW32** (GCC for Windows)
+- **NASM** (add to PATH)
+- **OpenSSL 32-bit** for runtime: [Win32 OpenSSL v1.1.1g or later](https://slproweb.com/products/Win32OpenSSL.html)
+
+## Building on Linux
+
+<Steps>
+
+<Step title="Clone the repository">
+
+First, obtain the source code:
+
+```bash
+git clone https://github.com/atrX/CoD4-Unleashed-Server.git
+cd CoD4-Unleashed-Server
+```
+
+</Step>
+
+<Step title="Run the build script">
+
+Execute the Linux build script:
+
+```bash
+./build_elf.sh
+```
+
+This script will:
+- Compile all C source files with `-m32` flag (32-bit)
+- Assemble all ASM hook files using NASM
+- Link everything together with required libraries
+- Output the binary to `bin/cod4u_lnx`
+
+</Step>
+
+<Step title="Verify the build">
+
+Check that the executable was created successfully:
+
+```bash
+ls -lh bin/cod4u_lnx
+```
+
+The binary should be approximately 2-4 MB in size.
+
+</Step>
+
+</Steps>
+
+### Build Process Details
+
+The Linux build script performs the following operations:
+
+1. **C Compilation**: Compiles all C files with these flags:
+   - `-m32`: Build 32-bit binary
+   - `-O0 -g`: No optimization, with debug symbols
+   - `-fno-omit-frame-pointer`: Keep frame pointers for debugging
+   - `-mtune=nocona`: Optimize for Intel Nocona architecture
+
+2. **ASM Compilation**: Assembles hook files:
+   - `qcommon_hooks.asm`, `cmd_hooks.asm`, `filesystem_hooks.asm`
+   - `xassets_hooks.asm`, `trace_hooks.asm`, `misc_hooks.asm`
+   - `scr_vm_hooks.asm`, `g_sv_hooks.asm`, `server_hooks.asm`
+   - `msg_hooks.asm`, `pluginexports.asm`
+
+3. **Linking**: Links with required libraries:
+   - `libcurl` (HTTP/HTTPS support)
+   - `libtomcrypt_linux`, `libtommath_linux` (cryptography)
+   - Standard libraries: `dl`, `pthread`, `m`, `stdc++`
+
+## Building on Windows
+
+<Steps>
+
+<Step title="Set up the environment">
+
+Ensure MinGW32 and NASM are in your system PATH. The build script automatically adds NASM from `%LOCALAPPDATA%\nasm`.
+
+</Step>
+
+<Step title="Run the build script">
+
+Execute the Windows build script:
+
+```batch
+build_win32.cmd
+```
+
+This script will:
+- Compile all C source files for Windows
+- Assemble all ASM hook files with COFF format
+- Link with Windows-specific libraries
+- Create plugin export library
+- Output the binary to `bin/cod4u_win32.exe`
+
+</Step>
+
+<Step title="Verify the build">
+
+The build script will automatically:
+- Clean up object files
+- Generate plugin export definitions using `pexports`
+- Create `libcom_plugin.a` for plugin development
+- Display completion message with output location
+
+</Step>
+
+</Steps>
+
+### Windows Build Details
+
+The Windows build differs from Linux in several ways:
+
+1. **Compiler Flags**:
+   - `-march=nocona` instead of `-mtune`
+   - `-D WINVER=0x501`: Target Windows XP and later
+   - COFF object format for NASM with `--prefix _`
+
+2. **Linking**:
+   - Custom linker script: `linkerscript_win32.ld`
+   - Image base: `0x8040000`
+   - Windows libraries: `ws2_32`, `wsock32`, `gdi32`, `winmm`
+   - Static linking: `-static-libgcc`
+
+3. **Plugin Support**:
+   - Exports all plugin API functions
+   - Creates `libcom_plugin.a` import library
+   - Required for developing custom plugins
+
+## Compilation Flags
+
+<CodeGroup>
+
+```c Linux C Flags
+-m32                        // 32-bit compilation
+-Wall                       // All warnings
+-O0 -g                     // Debug build
+-fno-omit-frame-pointer    // Keep frame pointers
+-mtune=nocona              // Optimize for Nocona
+-D COD4U                   // Define CoD4U macro
+-D _GNU_SOURCE             // GNU extensions
+```
+
+```c Windows C Flags
+-m32                        // 32-bit compilation
+-Wall                       // All warnings
+-O0 -g                     // Debug build
+-fno-omit-frame-pointer    // Keep frame pointers
+-march=nocona              // Target Nocona arch
+-D COD4U                   // Define CoD4U macro
+-D WINVER=0x501            // Windows XP target
+```
+
+```asm Linux NASM Flags
+-f elf                      // ELF object format
+```
+
+```asm Windows NASM Flags
+-f coff                     // COFF object format
+--prefix _                  // Add underscore prefix
+-dWin32                     // Define Win32 (pluginexports)
+```
+
+</CodeGroup>
+
+## Output Files
+
+After a successful build, you'll find:
+
+| Platform | Binary Location | Size |
+|----------|----------------|------|
+| Linux | `bin/cod4u_lnx` | ~2-4 MB |
+| Windows | `bin/cod4u_win32.exe` | ~2-4 MB |
+
+Additionally, Windows builds create:
+- `bin/cod4u_win32.def`: Export definitions
+- `plugins/libcom_plugin.a`: Plugin development library
+
+## Troubleshooting Build Issues
+
+<Accordion title="Error: Cannot find libcurl">
+
+Make sure libcurl development package is installed:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install libcurl4-openssl-dev:i386
+
+# Or try alternative
+sudo apt-get install libcurl4-gnutls-dev:i386
+```
+
+</Accordion>
+
+<Accordion title="Error: nasm: command not found">
+
+Install NASM assembler:
+
+```bash
+# Linux
+sudo apt-get install nasm:i386
+
+# Windows - Download from https://www.nasm.us/
+# Add to PATH or place in %LOCALAPPDATA%\nasm
+```
+
+</Accordion>
+
+<Accordion title="Error: gcc: error: unrecognized command line option '-m32'">
+
+On 64-bit systems, install 32-bit development tools:
+
+```bash
+sudo apt-get install gcc-multilib g++-multilib
+```
+
+</Accordion>
+
+<Accordion title="Windows: Missing DLL errors at runtime">
+
+Install Win32 OpenSSL:
+- Download from [slproweb.com](https://slproweb.com/products/Win32OpenSSL.html)
+- Install Win32 OpenSSL v1.1.1g or later
+- Make sure DLLs are in PATH or same directory as exe
+
+</Accordion>
+
+## Development Builds
+
+The default build configuration is optimized for development:
+
+- **Debug symbols** (`-g`): Enabled for debugging
+- **Optimization** (`-O0`): Disabled for easier debugging
+- **Frame pointers**: Kept for better stack traces
+
+### Creating Release Builds
+
+For production use, modify the build scripts:
+
+```bash
+# Change -O0 to -O2 or -O3 for optimization
+# Remove -g to strip debug symbols
+# Add -s to strip binary after linking
+```
+
+## Cross-Compilation
+
+You can cross-compile the Windows version from Linux:
+
+```bash
+# Install MinGW cross-compiler
+sudo apt-get install mingw-w64
+
+# Modify build_win32.cmd to use i686-w64-mingw32-gcc
+# instead of gcc
+```
+
+## Next Steps
+
+After successfully building the server:
+
+1. See [Installation](/installation) for deployment instructions
+2. Check [Configuration](/configuration/server-config) for setup options
+3. Review [Troubleshooting](/resources/troubleshooting) if you encounter issues
+
+<Note>
+The build process creates a debug build by default. For production deployments, consider creating an optimized release build with debug symbols stripped.
+</Note>

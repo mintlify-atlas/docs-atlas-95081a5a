@@ -1,0 +1,446 @@
+---
+title: 'Player Information'
+description: 'Functions for retrieving player network and performance information'
+icon: 'circle-info'
+---
+
+## Overview
+
+These functions provide access to various player information including network details, performance metrics, and client configuration.
+
+## getIp
+
+Returns the player's IP address.
+
+```gsc
+string getIp(<includePort>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="includePort" type="bool" default="false">
+  Optional parameter. Set to `1` or `true` to include the port number in the returned address
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The player's IP address, optionally with port (e.g., "192.168.1.1" or "192.168.1.1:28960")
+</ResponseField>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Get IP without port
+    ip = self getIp();
+    iPrintLn(self.name + " connected from: " + ip);
+    
+    // Get IP with port
+    ipWithPort = self getIp(1);
+    iPrintLn("Full address: " + ipWithPort);
+}
+
+CheckDuplicateConnection()
+{
+    connectedPlayers = getEntArray("player", "classname");
+    myIp = self getIp();
+    
+    for(i = 0; i < connectedPlayers.size; i++)
+    {
+        if(connectedPlayers[i] == self)
+            continue;
+            
+        if(connectedPlayers[i] getIp() == myIp)
+        {
+            iPrintLn("^3Warning: Multiple connections from " + myIp);
+            break;
+        }
+    }
+}
+```
+
+---
+
+## getPing
+
+Returns the player's current scoreboard ping.
+
+```gsc
+int getPing()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's ping in milliseconds
+</ResponseField>
+
+### Example
+
+```gsc
+MonitorPlayerPing()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 5;
+        
+        ping = self getPing();
+        
+        if(ping > 200)
+        {
+            self iPrintLn("^3High ping detected: " + ping + "ms");
+        }
+    }
+}
+
+GetAveragePing()
+{
+    players = getEntArray("player", "classname");
+    totalPing = 0;
+    
+    for(i = 0; i < players.size; i++)
+    {
+        totalPing += players[i] getPing();
+    }
+    
+    return (totalPing / players.size);
+}
+```
+
+---
+
+## getFps
+
+Returns the player's current frames per second (FPS).
+
+```gsc
+int getFps()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's current FPS
+</ResponseField>
+
+### Example
+
+```gsc
+CheckPlayerPerformance()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    for(;;)
+    {
+        wait 10;
+        
+        fps = self getFps();
+        
+        if(fps < 30)
+        {
+            self iPrintLn("^1Low FPS: " + fps + ". Consider lowering graphics settings.");
+        }
+    }
+}
+```
+
+---
+
+## getCountedFps
+
+Returns the player's counted FPS (more accurate measurement).
+
+```gsc
+int getCountedFps()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's counted FPS
+</ResponseField>
+
+<Info>
+  This function provides a more accurate FPS measurement compared to `getFps()` as it uses a counted measurement over time.
+</Info>
+
+### Example
+
+```gsc
+DisplayDetailedStats()
+{
+    fps = self getFps();
+    countedFps = self getCountedFps();
+    ping = self getPing();
+    
+    self iPrintLn("FPS: " + fps + " | Counted: " + countedFps + " | Ping: " + ping);
+}
+```
+
+---
+
+## isLagging
+
+Checks if the player is currently experiencing lag.
+
+```gsc
+bool isLagging()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  `true` if the player is lagging (FPS less than or equal to 0), `false` otherwise
+</ResponseField>
+
+### Example
+
+```gsc
+MonitorLaggingPlayers()
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        wait 5;
+        
+        players = getEntArray("player", "classname");
+        
+        for(i = 0; i < players.size; i++)
+        {
+            if(players[i] isLagging())
+            {
+                iPrintLn("^3" + players[i].name + " is experiencing connection issues");
+            }
+        }
+    }
+}
+
+PreventActionWhileLagging()
+{
+    if(self isLagging())
+    {
+        self iPrintLnBold("^1Cannot perform action while lagging!");
+        return false;
+    }
+    
+    return true;
+}
+```
+
+---
+
+## getGeoLocation
+
+Resolves the player's geographic location from their IP address using GeoIP.
+
+```gsc
+string getGeoLocation(<type>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="type" type="int" required>
+  The type of geographic information to retrieve:
+  - `0` - Country code (2 letters, e.g., "US")
+  - `1` - Country code3 (3 letters, e.g., "USA")
+  - `2` - Country name (e.g., "United States")
+  - `3` - Continent name (e.g., "North America")
+  - Other values return the location index as an integer
+</ParamField>
+
+<ResponseField name="return" type="string | int">
+  The geographic information as a string, or location index as an integer
+</ResponseField>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    countryCode = self getGeoLocation(0);
+    countryName = self getGeoLocation(2);
+    continent = self getGeoLocation(3);
+    
+    iPrintLn(self.name + " connected from " + countryName + " (" + countryCode + "), " + continent);
+}
+
+CheckRegionRestriction()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    allowedCountries = [];
+    allowedCountries[0] = "US";
+    allowedCountries[1] = "GB";
+    allowedCountries[2] = "DE";
+    
+    playerCountry = self getGeoLocation(0);
+    allowed = false;
+    
+    for(i = 0; i < allowedCountries.size; i++)
+    {
+        if(playerCountry == allowedCountries[i])
+        {
+            allowed = true;
+            break;
+        }
+    }
+    
+    if(!allowed)
+    {
+        kick(self getEntityNumber());
+    }
+}
+
+GroupPlayersByContinent()
+{
+    players = getEntArray("player", "classname");
+    
+    for(i = 0; i < players.size; i++)
+    {
+        continent = players[i] getGeoLocation(3);
+        countryName = players[i] getGeoLocation(2);
+        
+        iPrintLn(players[i].name + ": " + countryName + " (" + continent + ")");
+    }
+}
+```
+
+---
+
+## getUserinfo
+
+Returns a specific value from the player's userinfo string.
+
+```gsc
+string getUserinfo(<key>)
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ParamField body="key" type="string" required>
+  The userinfo key to query (e.g., "name", "rate", "cl_maxpackets")
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The value associated with the specified key
+</ResponseField>
+
+<Info>
+  Custom userinfo variables can be queried if they are set on the client using the `setu` command. The userinfo automatically updates when values change on the client, making this useful for transferring data from client to server.
+</Info>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    // Get standard userinfo values
+    playerName = self getUserinfo("name");
+    rate = self getUserinfo("rate");
+    
+    iPrintLn("Player: " + playerName + " | Rate: " + rate);
+    
+    // Get custom userinfo (must be set with 'setu myucvar "value"' on client)
+    customValue = self getUserinfo("myucvar");
+    
+    if(customValue != "")
+    {
+        iPrintLn("Custom value: " + customValue);
+    }
+}
+
+CheckClientSettings()
+{
+    maxPackets = self getUserinfo("cl_maxpackets");
+    snaps = self getUserinfo("snaps");
+    
+    if(int(maxPackets) < 30)
+    {
+        self iPrintLn("^3Warning: Your cl_maxpackets is low (" + maxPackets + "). Increase for better performance.");
+    }
+    
+    if(int(snaps) < 20)
+    {
+        self iPrintLn("^3Warning: Your snaps setting is low (" + snaps + ").");
+    }
+}
+```
+
+---
+
+## getProtocolVersion
+
+Returns the player's protocol version.
+
+```gsc
+int getProtocolVersion()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The player's protocol version
+</ResponseField>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    protocol = self getProtocolVersion();
+    iPrintLn(self.name + " is using protocol version: " + protocol);
+}
+
+CheckProtocolCompatibility()
+{
+    requiredProtocol = 6;
+    playerProtocol = self getProtocolVersion();
+    
+    if(playerProtocol != requiredProtocol)
+    {
+        self iPrintLnBold("^1Incompatible protocol version!");
+        self iPrintLn("Required: " + requiredProtocol + " | Your version: " + playerProtocol);
+        wait 5;
+        kick(self getEntityNumber());
+    }
+}
+```
+
+## Related Functions
+
+- [getUid](/scripting/player/authentication#getuid) - Get player UID
+- [getPower](/scripting/player/authentication#getpower) - Get player power level
