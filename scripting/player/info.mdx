@@ -440,6 +440,60 @@ CheckProtocolCompatibility()
 }
 ```
 
+---
+
+## getClientVersion
+
+Returns the player's client version string if available.
+
+```gsc
+string getClientVersion()
+```
+
+<ParamField body="self" type="entity" required>
+  The player entity
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The player's client version string, or `undefined` if not available
+</ResponseField>
+
+### Example
+
+```gsc
+OnPlayerConnect()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    version = self getClientVersion();
+    
+    if(isDefined(version))
+    {
+        iPrintLn(self.name + " is using client version: " + version);
+    }
+    else
+    {
+        iPrintLn(self.name + " client version not available");
+    }
+}
+
+CheckClientVersion()
+{
+    version = self getClientVersion();
+    
+    if(isDefined(version))
+    {
+        // Log client versions for analytics
+        logPrint("ClientVersion;" + self.name + ";" + version + "\n");
+    }
+}
+```
+
+<Note>
+  The client version may not be available for all clients. Always check if the returned value is defined before using it.
+</Note>
+
 ## Related Functions
 
 - [getUid](/scripting/player/authentication#getuid) - Get player UID

@@ -342,6 +342,154 @@ system("cp -r main backup_" + getTime());
   The `system()` function does not return command output. Use with caution in production environments.
 </Note>
 
+## Configuration Variables (CVars)
+
+### getCvar
+
+Gets the string value of a server console variable (cvar).
+
+```gsc
+value = getCvar(cvarName)
+```
+
+<ParamField path="cvarName" type="string" required>
+  The name of the cvar to retrieve
+</ParamField>
+
+<ResponseField name="value" type="string">
+  Returns the cvar value as a string
+</ResponseField>
+
+```gsc Example
+mapName = getCvar("mapname");
+maxClients = getCvar("sv_maxclients");
+```
+
+### getCvarInt
+
+Gets the integer value of a server console variable.
+
+```gsc
+value = getCvarInt(cvarName)
+```
+
+<ParamField path="cvarName" type="string" required>
+  The name of the cvar to retrieve
+</ParamField>
+
+<ResponseField name="value" type="int">
+  Returns the cvar value as an integer
+</ResponseField>
+
+```gsc Example
+maxClients = getCvarInt("sv_maxclients");
+```
+
+### getCvarFloat
+
+Gets the floating-point value of a server console variable.
+
+```gsc
+value = getCvarFloat(cvarName)
+```
+
+<ParamField path="cvarName" type="string" required>
+  The name of the cvar to retrieve
+</ParamField>
+
+<ResponseField name="value" type="float">
+  Returns the cvar value as a float
+</ResponseField>
+
+```gsc Example
+gravity = getCvarFloat("g_gravity");
+```
+
+### setCvar
+
+Sets the value of a server console variable.
+
+```gsc
+setCvar(cvarName, value)
+```
+
+<ParamField path="cvarName" type="string" required>
+  The name of the cvar to set
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The new value for the cvar
+</ParamField>
+
+```gsc Example
+setCvar("g_gametype", "dm");
+setCvar("sv_hostname", "My CoD4 Server");
+```
+
+<Note>
+  Changes to some cvars may require a map restart to take effect.
+</Note>
+
+## Vector Operations
+
+### vectorAdd
+
+Adds two 3D vectors together.
+
+```gsc
+result = vectorAdd(vector1, vector2)
+```
+
+<ParamField path="vector1" type="vector" required>
+  The first vector (x, y, z)
+</ParamField>
+
+<ParamField path="vector2" type="vector" required>
+  The second vector to add
+</ParamField>
+
+<ResponseField name="result" type="vector">
+  Returns the sum of the two vectors
+</ResponseField>
+
+```gsc Example
+pos1 = (100, 200, 300);
+offset = (10, 20, 30);
+newPos = vectorAdd(pos1, offset);
+// newPos = (110, 220, 330)
+```
+
+### vectorScale
+
+Multiplies a vector by a scalar value.
+
+```gsc
+result = vectorScale(vector, scalar)
+```
+
+<ParamField path="vector" type="vector" required>
+  The vector to scale
+</ParamField>
+
+<ParamField path="scalar" type="float" required>
+  The scalar multiplier
+</ParamField>
+
+<ResponseField name="result" type="vector">
+  Returns the scaled vector
+</ResponseField>
+
+```gsc Example
+direction = (1, 0, 0);
+scaled = vectorScale(direction, 100);
+// scaled = (100, 0, 0)
+
+// Double a position vector
+pos = (50, 75, 100);
+doubled = vectorScale(pos, 2);
+// doubled = (100, 150, 200)
+```
+
 ## Best Practices
 
 <CardGroup cols={2}>
