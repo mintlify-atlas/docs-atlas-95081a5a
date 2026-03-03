@@ -1,0 +1,157 @@
+{
+  "projectType": "general",
+  "projectName": "CoD4 Unleashed Server",
+  "projectDescription": "A custom Call of Duty 4 dedicated server enhancing functionality and usability of the stock CoD4 server.",
+  "theme": "aspen",
+  "primaryColor": "#8B4513",
+  "lightColor": "#D2691E",
+  "darkColor": "#5C2E0A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/configuration",
+              "concepts/networking"
+            ]
+          },
+          {
+            "group": "Server Administration",
+            "pages": [
+              "admin/server-commands",
+              "admin/authentication",
+              "admin/web-admin",
+              "admin/security"
+            ]
+          },
+          {
+            "group": "Plugin System",
+            "pages": [
+              "plugins/overview",
+              "plugins/installation",
+              "plugins/development",
+              "plugins/api-reference",
+              "plugins/examples"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Scripting API",
+        "groups": [
+          {
+            "group": "GSC Scripting",
+            "pages": [
+              "scripting/overview",
+              "scripting/getting-started"
+            ]
+          },
+          {
+            "group": "Player Functions",
+            "pages": [
+              "scripting/player/authentication",
+              "scripting/player/info",
+              "scripting/player/movement",
+              "scripting/player/controls"
+            ]
+          },
+          {
+            "group": "Server Functions",
+            "pages": [
+              "scripting/server/file-system",
+              "scripting/server/http-requests",
+              "scripting/server/utilities",
+              "scripting/server/bots"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "scripting/advanced/json",
+              "scripting/advanced/arrays",
+              "scripting/advanced/hud-elements"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Additional Resources",
+            "pages": [
+              "resources/building",
+              "resources/troubleshooting",
+              "resources/contributing",
+              "resources/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Plugin system for server extensibility with C/C++ plugins",
+    "Enhanced GSC scripting API with 70+ custom functions",
+    "HTTP/HTTPS request support for external integrations",
+    "JSON parsing and array manipulation in GSC",
+    "Advanced player management with UID authentication",
+    "GeoIP location tracking for players",
+    "Web-based admin interface",
+    "FPS monitoring and lag detection",
+    "Custom movement physics (gravity, jump height, velocity)",
+    "Bot spawning and management",
+    "File system operations from GSC scripts",
+    "HL2RCON support for remote administration"
+  ],
+  "publicApiSurface": [
+    "getUid() - Get player unique identifier",
+    "setUid() - Set player unique identifier",
+    "getIp() - Get player IP address",
+    "getPing() - Get player ping",
+    "getFps() - Get player frames per second",
+    "getCountedFps() - Get accurate FPS with lag spike detection",
+    "isLagging() - Check if player is lagging",
+    "getGeoLocation() - Get player geographic location",
+    "setGravity() - Set player gravity",
+    "setJumpHeight() - Set player jump height",
+    "setMoveSpeed() - Set player movement speed",
+    "setVelocity() - Set player velocity vector",
+    "getSpectatedClient() - Get client being spectated",
+    "setSpectatedClient() - Set spectated client",
+    "isButtonPressed() - Check button state",
+    "strTokByLen() - Tokenize string by length",
+    "strRepl() - String replacement function",
+    "strColorStrip() - Strip color codes from string",
+    "sha256() - Calculate SHA-256 hash",
+    "getEpochTime() - Get Unix timestamp",
+    "epochTimeToString() - Convert timestamp to string",
+    "isArray() - Check if variable is array",
+    "system() - Execute system commands",
+    "fsOpen() - Open file for reading/writing",
+    "fsClose() - Close file handle",
+    "fsReadLine() - Read line from file",
+    "fsWriteLine() - Write line to file",
+    "fsRemove() - Delete file",
+    "spawnBot() - Spawn AI bot",
+    "removeBot() - Remove specific bot",
+    "removeAllBots() - Remove all bots",
+    "kickClient() - Kick player from server",
+    "banClient() - Ban player from server",
+    "Plugin_ScrAddFunction() - Register script function from plugin",
+    "Plugin_ScrAddMethod() - Register script method from plugin",
+    "Plugin_RegisterHandler() - Register plugin event handler"
+  ]
+}
